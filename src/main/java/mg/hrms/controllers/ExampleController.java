@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 @RequestMapping("/")
 public class ExampleController {
 
-    @GetMapping("/")
+    @GetMapping
     public String dashboard(Model model) {
         // Set page title
         
