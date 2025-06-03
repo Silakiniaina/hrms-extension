@@ -1,4 +1,5 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<%@ page import="mg.hrms.models.User" %>
 
 <!-- Main Sidebar Container -->
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
@@ -17,10 +18,10 @@
             </div>
             <div class="info">
                 <a href="#" class="d-block">
-                    <% if (session.getAttribute("userName") != null) { %>
-                        <%= session.getAttribute("userName") %>
+                    <% if (session.getAttribute("user") != null) { %>
+                        <%= ((User)session.getAttribute("user")).getFullName() %>
                     <% } else { %>
-                        Alexander Pierce
+                        Admin
                     <% } %>
                 </a>
             </div>
@@ -48,7 +49,7 @@
                     </a>
                     <ul class="nav nav-treeview">
                         <li class="nav-item">
-                            <a href="<%= request.getContextPath() %>/users" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
+                            <a href="<%= request.getContextPath() %>/employees" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
                                 <i class="far fa-circle nav-icon"></i>
                                 <p>All Employee</p>
                             </a>

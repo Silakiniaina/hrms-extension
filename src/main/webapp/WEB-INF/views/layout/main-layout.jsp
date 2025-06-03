@@ -32,14 +32,26 @@
         <!-- Main content -->
         <section class="content">
             <div class="container-fluid">
-                <% if (request.getAttribute("successMessage") != null) { %>
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <%= request.getAttribute("successMessage") %>
+                <!-- ----------------------------- Error card ------------------------------ -->
+                <% if (request.getAttribute("error") != null) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <%= request.getAttribute("error") %>
                         <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                 <% } %>
+
+                <!-- ----------------------------- Error card ------------------------------ -->
+                <% if (request.getAttribute("success") != null) { %>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <%= request.getAttribute("success") %>
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                <% } %>
+
                 
                 <!-- Page Content -->
                 <% 
