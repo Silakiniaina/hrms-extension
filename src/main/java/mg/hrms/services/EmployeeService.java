@@ -3,18 +3,18 @@ package mg.hrms.services;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import mg.hrms.models.Employee;
 import mg.hrms.models.User;
+import mg.hrms.models.SalarySlip;
 import mg.hrms.models.args.EmployeeFilterArgs;
 import mg.hrms.utils.ApiUtils;
 
@@ -29,9 +29,45 @@ public class EmployeeService {
     /* -------------------------------------------------------------------------- */
     /*                                 Constructor                                */
     /* -------------------------------------------------------------------------- */
-    public EmployeeService(RestApiService restApiService, ObjectMapper objectMapper){
+    public EmployeeService(RestApiService restApiService, ObjectMapper objectMapper) {
         this.restApiService = restApiService;
         this.objectMapper = objectMapper;
+        this.objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                             Fetch employee by ID                           */
+    /* -------------------------------------------------------------------------- */
+    public Employee getById(User user, String employeeId) throws Exception {
+        String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
+
+        String apiUrl = ApiUtils.buildUrl(
+            restApiService.getServerHost() + "/api/resource/Employee/" + employeeId,
+            fields,
+            null
+        );
+
+        logger.info("Fetching employee by ID: {}", apiUrl);
+
+        var response = restApiService.executeApiCall(
+            apiUrl,
+            HttpMethod.GET,
+            null,
+            user,
+            new ParameterizedTypeReference<Map<String, Object>>() {}
+        );
+
+        if (response.getBody() == null || response.getBody().get("data") == null) {
+            logger.error("Employee not found");
+            throw new Exception("Employee not found");
+        }
+
+        Employee employee = objectMapper.convertValue(
+            response.getBody().get("data"),
+            Employee.class
+        );
+
+        return employee;
     }
 
     /* -------------------------------------------------------------------------- */
@@ -39,7 +75,7 @@ public class EmployeeService {
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "null" })
     public List<Employee> getAll(User user, EmployeeFilterArgs filter) throws Exception {
-        String[] fields = {"name", "last_name","first_name","gender","date_of_birth","date_of_joining","company","status"};
+        String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
 
         // Prepare filters as List of String arrays for ERPNext format: [["field","operator","value"],...]
         List<String[]> filters = new ArrayList<>();
@@ -92,18 +128,70 @@ public class EmployeeService {
         );
         logger.info("API response received successfully");
 
+        if (response.getBody() == null || response.getBody().get("data") == null) {
+            logger.error("Employees data not found");
+            throw new Exception("Employees data not found");
+        }
+
         List<Employee> employees = objectMapper.convertValue(
             response.getBody().get("data"),
             objectMapper.getTypeFactory().constructCollectionType(List.class, Employee.class)
         );
 
-        if (employees == null) {
-            logger.error("Employees data not found");
-            throw new Exception("Employees data not found");
-        }
-
         logger.info("Retrieved {} employees successfully", employees.size());
 
         return employees;
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                          Fetch Employee Salaries                           */
+    /* -------------------------------------------------------------------------- */
+    public List<SalarySlip> getEmployeeSalaries(User user, String employeeId) throws Exception {
+        String[] fields = {"name", "employee", "employee_name", "posting_date", "gross_pay", "net_pay", "status"};
+        List<String[]> filters = new ArrayList<>();
+        filters.add(new String[]{"employee", "=", employeeId});
+        filters.add(new String[]{"docstatus", "=", "1"}); // Only submitted salary slips
+
+        // Encode the resource name properly (space as %20)
+        String resourceName = "Salary%20Slip";
+        String baseUrl = restApiService.getServerHost() + "/api/resource/" + resourceName;
+
+        String apiUrl = ApiUtils.buildUrl(
+            baseUrl,
+            fields,
+            filters
+        );
+
+        logger.info("Fetching employee salaries with URL: {}", apiUrl);
+
+        try {
+            var response = restApiService.executeApiCall(
+                apiUrl,
+                HttpMethod.GET,
+                null,
+                user,
+                new ParameterizedTypeReference<Map<String, Object>>() {}
+            );
+
+            if (response.getBody() == null || response.getBody().get("data") == null) {
+                logger.warn("No salary data found for employeeId: {}", employeeId);
+                return new ArrayList<>();
+            }
+
+            // Configure ObjectMapper to ignore unknown properties
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+            List<SalarySlip> salaries = mapper.convertValue(
+                response.getBody().get("data"),
+                mapper.getTypeFactory().constructCollectionType(List.class, SalarySlip.class)
+            );
+
+            logger.info("Retrieved {} salary slips for employeeId: {}", salaries.size(), employeeId);
+            return salaries;
+        } catch (Exception e) {
+            logger.error("Failed to fetch salaries for employeeId: {}. Error: {}", employeeId, e.getMessage());
+            throw new Exception("Failed to fetch employee salaries: " + e.getMessage(), e);
+        }
     }
 }
