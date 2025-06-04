@@ -1,5 +1,7 @@
 package mg.hrms.controllers;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -12,6 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpSession;
 import mg.hrms.models.User;
+import mg.hrms.models.Employee;
+import mg.hrms.models.SalarySlip;
 import mg.hrms.models.args.EmployeeFilterArgs;
 import mg.hrms.services.CompanyService;
 import mg.hrms.services.EmployeeService;
@@ -89,6 +93,34 @@ public class EmployeeController {
         } catch (Exception e) {
             model.addAttribute("error", "Failed to filter employees: " + e.getMessage());
             return "layout/main-layout";
+        }
+    }
+
+    @GetMapping("/view")
+    public String viewEmployee(Model model, HttpSession session,
+            @RequestParam String employeeId) {
+        try {
+            model.addAttribute("pageTitle", "Employee Details");
+            model.addAttribute("contentPage", "pages/employees/employee-view.jsp");
+
+            User connectedUser = (User) session.getAttribute("user");
+            if (connectedUser == null) {
+                throw new Exception("User not authenticated");
+            }
+
+            // Get employee details
+            Employee employee = employeeService.getById(connectedUser, employeeId);
+            model.addAttribute("employee", employee);
+
+            // Get employee salaries
+            List<SalarySlip> salaries = employeeService.getEmployeeSalaries(connectedUser, employeeId);
+            model.addAttribute("salaries", salaries);
+
+            return "layout/main-layout";
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Failed to load employee details: " + e.getMessage());
+            return "redirect:/employees";
         }
     }
 }
