@@ -123,4 +123,61 @@ public class EmployeeController {
             return "redirect:/employees";
         }
     }
+
+    @GetMapping("/payslip")
+    public String showPayslipForm(Model model, HttpSession session,
+            @RequestParam String employeeId) {
+        try {
+            model.addAttribute("pageTitle", "View Payslip");
+            model.addAttribute("contentPage", "pages/employees/payslip/payslip-form.jsp");
+
+            User connectedUser = (User) session.getAttribute("user");
+            if (connectedUser == null) {
+                throw new Exception("User not authenticated");
+            }
+
+            // Get employee details
+            Employee employee = employeeService.getById(connectedUser, employeeId);
+            model.addAttribute("employee", employee);
+
+            // Get available months with payslips
+            List<SalarySlip> salaries = employeeService.getEmployeeSalaries(connectedUser, employeeId);
+            model.addAttribute("salaries", salaries);
+
+            return "layout/main-layout";
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Failed to load payslip form: " + e.getMessage());
+            return "redirect:/employees/view?employeeId=" + employeeId;
+        }
+    }
+
+    @PostMapping("/payslip")
+    public String viewPayslip(Model model, HttpSession session,
+            @RequestParam String employeeId,
+            @RequestParam String payslipId) {
+        try {
+            User connectedUser = (User) session.getAttribute("user");
+            if (connectedUser == null) {
+                throw new Exception("User not authenticated");
+            }
+
+            // Get the payslip details
+            SalarySlip payslip = employeeService.getPayslipById(connectedUser, payslipId);
+            model.addAttribute("payslip", payslip);
+
+            // Get employee details
+            Employee employee = employeeService.getById(connectedUser, employeeId);
+            model.addAttribute("employee", employee);
+
+            model.addAttribute("pageTitle", "Payslip - " + payslip.getPostingDate());
+            model.addAttribute("contentPage", "pages/employees/payslip/payslip-view.jsp");
+
+            return "layout/main-layout";
+        } catch (Exception e) {
+            e.printStackTrace();
+            model.addAttribute("error", "Failed to load payslip: " + e.getMessage());
+            return "redirect:/employees/payslip?employeeId=" + employeeId;
+        }
+    }
 }
