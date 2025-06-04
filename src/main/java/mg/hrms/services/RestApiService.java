@@ -1,5 +1,6 @@
 package mg.hrms.services;
 
+import java.net.URI;
 import java.util.Collections;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -19,9 +20,9 @@ import mg.hrms.utils.ApiUtils;
 
 @Service
 public class RestApiService {
-    
+
     private final RestTemplate restTemplate;
-    
+
     @Value("${erpnext.server.url}")
     private String serverHost;
 
@@ -42,7 +43,6 @@ public class RestApiService {
     /* -------------------------------------------------------------------------- */
     /*                          API Call for ErpNEXT API                          */
     /* -------------------------------------------------------------------------- */
-    @SuppressWarnings("deprecation")
     public <T, R> ResponseEntity<R> executeApiCall(String url, HttpMethod method, T requestBody,
             User user, ParameterizedTypeReference<R> responseType) throws Exception {
 
@@ -54,8 +54,11 @@ public class RestApiService {
 
             HttpEntity<T> entity = new HttpEntity<>(requestBody, headers);
 
+            // Convert the URL string to URI to prevent RestTemplate from treating {} as path variables
+            URI uri = URI.create(url);
+
             ResponseEntity<R> response = restTemplate.exchange(
-                    url,
+                    uri,  // Use URI instead of String
                     method,
                     entity,
                     responseType);
@@ -64,7 +67,7 @@ public class RestApiService {
                 return response;
             }
 
-            throw new Exception("HTTP " + response.getStatusCodeValue());
+            throw new Exception("HTTP " + response.getStatusCode().value());
 
         } catch (HttpClientErrorException e) {
             String errorMessage;
