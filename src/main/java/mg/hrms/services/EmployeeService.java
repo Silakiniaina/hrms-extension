@@ -3,8 +3,6 @@ package mg.hrms.services;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
@@ -16,7 +14,7 @@ import mg.hrms.models.Employee;
 import mg.hrms.models.User;
 import mg.hrms.models.SalarySlip;
 import mg.hrms.models.args.EmployeeFilterArgs;
-import mg.hrms.utils.ApiUtils;
+import mg.hrms.utils.ApiUtils; // Ensure this import is present
 
 @Service
 public class EmployeeService {
@@ -27,7 +25,7 @@ public class EmployeeService {
     private final ObjectMapper objectMapper;
 
     /* -------------------------------------------------------------------------- */
-    /*                                 Constructor                                */
+    /* Constructor                                */
     /* -------------------------------------------------------------------------- */
     public EmployeeService(RestApiService restApiService, ObjectMapper objectMapper) {
         this.restApiService = restApiService;
@@ -36,15 +34,17 @@ public class EmployeeService {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                             Fetch employee by ID                           */
+    /* Fetch employee by ID                           */
     /* -------------------------------------------------------------------------- */
     public Employee getById(User user, String employeeId) throws Exception {
         String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
 
-        String apiUrl = ApiUtils.buildUrl(
-            restApiService.getServerHost() + "/api/resource/Employee/" + employeeId,
-            fields,
-            null
+        // Already using buildResourceUrl, which is good.
+        String apiUrl = ApiUtils.buildResourceUrl(
+            restApiService.getServerHost(),
+            "Employee",
+            employeeId,
+            fields
         );
 
         logger.info("Fetching employee by ID: {}", apiUrl);
@@ -71,7 +71,7 @@ public class EmployeeService {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                             Fetch All employee                             */
+    /* Fetch All employee                             */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "null" })
     public List<Employee> getAll(User user, EmployeeFilterArgs filter) throws Exception {
@@ -111,8 +111,10 @@ public class EmployeeService {
             }
         }
 
+        // Updated buildUrl call to pass doctype separately
         String apiUrl = ApiUtils.buildUrl(
-            restApiService.getServerHost() + "/api/resource/Employee",
+            restApiService.getServerHost(),
+            "Employee", // Doctype moved to a separate argument
             fields,
             filters
         );
@@ -144,20 +146,18 @@ public class EmployeeService {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                          Fetch Employee Salaries                           */
+    /* Fetch Employee Salaries                           */
     /* -------------------------------------------------------------------------- */
     public List<SalarySlip> getEmployeeSalaries(User user, String employeeId) throws Exception {
         String[] fields = {"name", "employee", "employee_name", "posting_date", "gross_pay", "net_pay", "status"};
         List<String[]> filters = new ArrayList<>();
         filters.add(new String[]{"employee", "=", employeeId});
-        filters.add(new String[]{"docstatus", "=", "1"}); // Only submitted salary slips
+        filters.add(new String[]{"docstatus", "=", "1"});
 
-        // Encode the resource name properly (space as %20)
-        String resourceName = "Salary%20Slip";
-        String baseUrl = restApiService.getServerHost() + "/api/resource/" + resourceName;
-
+        // Updated buildUrl call to pass doctype separately
         String apiUrl = ApiUtils.buildUrl(
-            baseUrl,
+            restApiService.getServerHost(),
+            "Salary Slip", // Doctype moved to a separate argument
             fields,
             filters
         );
@@ -193,5 +193,42 @@ public class EmployeeService {
             logger.error("Failed to fetch salaries for employeeId: {}. Error: {}", employeeId, e.getMessage());
             throw new Exception("Failed to fetch employee salaries: " + e.getMessage(), e);
         }
+    }
+
+    public SalarySlip getPayslipById(User user, String payslipId) throws Exception {
+        String[] fields = {"name", "employee", "employee_name", "posting_date",
+                        "gross_pay", "net_pay", "status", "earnings", "deductions",
+                        "company", "bank_name", "bank_account_no"};
+
+        // Use buildResourceUrl for individual resource requests, it handles doctype with spaces and fields properly
+        String apiUrl = ApiUtils.buildResourceUrl(
+            restApiService.getServerHost(),
+            "Salary Slip", // doctype
+            payslipId,   // resourceId
+            fields       // fields
+        );
+
+        logger.info("Fetching payslip by ID: {}", apiUrl);
+
+        var response = restApiService.executeApiCall(
+            apiUrl,
+            HttpMethod.GET,
+            null,
+            user,
+            new ParameterizedTypeReference<Map<String, Object>>() {}
+        );
+
+        if (response.getBody() == null || response.getBody().get("data") == null) {
+            logger.error("Payslip not found with ID: {}", payslipId);
+            throw new Exception("Payslip not found");
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        return mapper.convertValue(
+            response.getBody().get("data"),
+            SalarySlip.class
+        );
     }
 }
