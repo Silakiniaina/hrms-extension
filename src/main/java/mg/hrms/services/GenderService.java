@@ -18,13 +18,13 @@ import mg.hrms.utils.ApiUtils;
 
 @Service
 public class GenderService {
-    
+
     Logger logger = LoggerFactory.getLogger(GenderService.class);
     private final RestApiService restApiService;
     private final ObjectMapper objectMapper;
 
     /* -------------------------------------------------------------------------- */
-    /*                                 Constructor                                */
+    /* Constructor                                */
     /* -------------------------------------------------------------------------- */
     public GenderService(RestApiService restApiService, ObjectMapper objectMapper) {
         this.restApiService = restApiService;
@@ -32,13 +32,14 @@ public class GenderService {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                              Fetch all genders                             */
+    /* Fetch all genders                             */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings("null")
     public List<Gender> getAll(User user) throws Exception {
         logger.info("Fetching all genders for user: " + user.getFullName());
         String[] fields = {"name"};
-        String apiUrl = ApiUtils.buildUrl(restApiService.getServerHost() + "/api/resource/Gender", fields, null);
+        // Updated buildUrl call to pass doctype separately
+        String apiUrl = ApiUtils.buildUrl(restApiService.getServerHost(), "Gender", fields, null);
         var response = restApiService.executeApiCall(
             apiUrl,
             HttpMethod.GET,

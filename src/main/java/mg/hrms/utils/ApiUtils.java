@@ -8,13 +8,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.web.util.UriComponentsBuilder;
+
 
 import mg.hrms.models.User;
 
 public class ApiUtils {
 
     /* -------------------------------------------------------------------------- */
-    /*                     Set the user cookien on the headers                    */
+    /* Set the user cookie on the headers                                */
     /* -------------------------------------------------------------------------- */
     public static void setUserCookie(User user, HttpHeaders headers) {
         if (user == null) {
@@ -32,23 +34,57 @@ public class ApiUtils {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                       Build url for ErpNext API call                       */
+    /* Build URL for individual resource requests                                 */
     /* -------------------------------------------------------------------------- */
-    public static String buildUrl(String baseUrl, String[] fields, List<String[]> filters) {
+    public static String buildResourceUrl(String baseUrl, String doctype, String resourceId, String[] fields) {
         try {
-            // Convert the fields array to a JSON array string
-            StringBuilder fieldsJson = new StringBuilder("[");
-            for (int i = 0; i < fields.length; i++) {
-                fieldsJson.append("\"").append(fields[i]).append("\"");
-                if (i < fields.length - 1) {
-                    fieldsJson.append(",");
-                }
-            }
-            fieldsJson.append("]");
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .pathSegment("api", "resource", doctype, resourceId);
 
-            // Start building the URL manually
-            StringBuilder urlBuilder = new StringBuilder(baseUrl);
-            urlBuilder.append("?fields=").append(URLEncoder.encode(fieldsJson.toString(), StandardCharsets.UTF_8));
+            if (fields != null && fields.length > 0) {
+                // Construct the JSON array string for fields
+                StringBuilder fieldsJson = new StringBuilder("[");
+                for (int i = 0; i < fields.length; i++) {
+                    fieldsJson.append("\"").append(fields[i]).append("\"");
+                    if (i < fields.length - 1) {
+                        fieldsJson.append(",");
+                    }
+                }
+                fieldsJson.append("]");
+
+                // Pass the raw JSON string. Encoding will happen later.
+                builder.queryParam("fields", fieldsJson.toString());
+            }
+
+            // Corrected: Build the URI first, then encode it.
+            return builder.build().encode().toUriString();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to build resource URL: " + e.getMessage(), e);
+        }
+    }
+
+
+    /* -------------------------------------------------------------------------- */
+    /* Build URL for list/collection requests                                     */
+    /* -------------------------------------------------------------------------- */
+    public static String buildUrl(String baseUrl, String doctype, String[] fields, List<String[]> filters) {
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
+                .pathSegment("api", "resource", doctype); // Assuming doctype is part of the path for collection requests
+
+            // Add fields if provided
+            if (fields != null && fields.length > 0) {
+                StringBuilder fieldsJson = new StringBuilder("[");
+                for (int i = 0; i < fields.length; i++) {
+                    fieldsJson.append("\"").append(fields[i]).append("\"");
+                    if (i < fields.length - 1) {
+                        fieldsJson.append(",");
+                    }
+                }
+                fieldsJson.append("]");
+                // Pass the raw JSON string; Encoding will happen later.
+                builder.queryParam("fields", fieldsJson.toString());
+            }
 
             // Add filters if provided - ERPNext expects filters as array of arrays: [["field","operator","value"],...]
             if (filters != null && !filters.isEmpty()) {
@@ -58,21 +94,32 @@ public class ApiUtils {
                         filtersJson.append(",");
                     }
                     String[] filter = filters.get(i);
-                    filtersJson.append("[\"").append(filter[0]).append("\",\"").append(filter[1]).append("\",\"").append(filter[2]).append("\"]");
+                    // Ensure filter[0], filter[1], filter[2] are not null to avoid NullPointerException
+                    // Add quotes around each element as per ERPNext filter array format
+                    filtersJson.append("[\"")
+                        .append(filter[0] != null ? filter[0] : "")
+                        .append("\",\"")
+                        .append(filter[1] != null ? filter[1] : "")
+                        .append("\",\"")
+                        .append(filter[2] != null ? filter[2] : "")
+                        .append("\"]");
                 }
                 filtersJson.append("]");
-
-                // URL encode the filters array
-                String encodedFilters = URLEncoder.encode(filtersJson.toString(), StandardCharsets.UTF_8);
-                urlBuilder.append("&filters=").append(encodedFilters);
+                // Pass the raw JSON string; Encoding will happen later.
+                builder.queryParam("filters", filtersJson.toString());
             }
 
-            return urlBuilder.toString();
+            // You can add other parameters like limit, start, order_by similarly
+            // e.g., builder.queryParam("limit_start", 0);
+            // e.g., builder.queryParam("limit_page_length", 20);
 
+            // Corrected: Build the URI first, then encode it.
+            return builder.build().encode().toUriString();
         } catch (Exception e) {
             throw new RuntimeException("Failed to build URL: " + e.getMessage(), e);
         }
     }
+
 
     public static List<String[]> buildDobFilters(int minAge, int maxAge) {
         List<String[]> filters = new ArrayList<>();

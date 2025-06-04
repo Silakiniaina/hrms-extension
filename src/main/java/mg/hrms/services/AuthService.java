@@ -20,7 +20,7 @@ import mg.hrms.models.User;
 
 @Service
 public class AuthService {
-    
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
@@ -28,7 +28,7 @@ public class AuthService {
     private String serverHost;
 
     /* -------------------------------------------------------------------------- */
-    /*                                 Constructor                                */
+    /* Constructor                                */
     /* -------------------------------------------------------------------------- */
     public AuthService(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
@@ -36,11 +36,12 @@ public class AuthService {
     }
 
     /* -------------------------------------------------------------------------- */
-    /*                              Function to login                             */
+    /* Function to login                             */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "unchecked", "deprecation", "null" })
     public User login(String username, String password) throws Exception {
         try {
+            // This URL does not use fields or filters, so no change needed here.
             String url = UriComponentsBuilder
                     .fromHttpUrl(serverHost + "/api/method/login")
                     .build()
@@ -70,8 +71,8 @@ public class AuthService {
                 if ("Logged In".equals(responseBody.get("message"))) {
                     String userId = (String) responseBody.get("user_id");
                     String fullName = (String) responseBody.get("full_name");
-                    String userLang = (String) responseBody.getOrDefault("user_lang", "en"); 
-                    String systemUser = (String) responseBody.getOrDefault("system_user", "yes"); 
+                    String userLang = (String) responseBody.getOrDefault("user_lang", "en");
+                    String systemUser = (String) responseBody.getOrDefault("system_user", "yes");
                     String sid = null;
 
                     // Extraction du cookie sid
