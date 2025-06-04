@@ -15,8 +15,5 @@ import lombok.Setter;
 @NoArgsConstructor
 public class Company {
     @JsonProperty("name")
-    private String companyId;
-
-    @JsonProperty("company_name")
-    private String companyName;
+    private String name;
 }
