@@ -104,7 +104,7 @@
                                         <td><%= employee.getCompany() != null ? employee.getCompany() : "" %></td>
                                         <td><%= employee.getStatus() != null ? employee.getStatus() : "Not defined" %></td>
                                         <td>
-                                            <a href="#" class="btn btn-info btn-sm">
+                                            <a href="${pageContext.request.contextPath}/employees/view?employeeId=<%= employee.getEmployeeId() %>" class="btn btn-info btn-sm">
                                                 <i class="fas fa-eye"></i> View
                                             </a>
                                         </td>
