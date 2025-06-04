@@ -24,21 +24,22 @@ public class CompanyService {
     private final ObjectMapper objectMapper;
 
     /* -------------------------------------------------------------------------- */
-    /*                                 Constructor                                */
+    /* Constructor                                */
     /* -------------------------------------------------------------------------- */
     public CompanyService(RestApiService restApiService, ObjectMapper objectMapper) {
         this.restApiService = restApiService;
         this.objectMapper = objectMapper;
     }
-    
+
     /* -------------------------------------------------------------------------- */
-    /*                                 Additional Methods                         */
+    /* Additional Methods                         */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings("null")
     public List<Company> getAll(User user) throws Exception {
         logger.info("Fetching all companies for user: {}", user.getFullName());
         String[] fields = {"name"};
-        String apiUrl = ApiUtils.buildUrl(restApiService.getServerHost() + "/api/resource/Company", fields, null);
+        // Updated buildUrl call to pass doctype separately
+        String apiUrl = ApiUtils.buildUrl(restApiService.getServerHost(), "Company", fields, null);
         var response = restApiService.executeApiCall(
             apiUrl,
             HttpMethod.GET,
