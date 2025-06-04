@@ -13,7 +13,10 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class Company {
+public class Gender {
     @JsonProperty("name")
     private String name;
+
+    @JsonProperty("code")
+    private String code;
 }
