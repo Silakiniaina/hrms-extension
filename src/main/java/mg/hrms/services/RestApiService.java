@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import mg.hrms.models.User;
 import mg.hrms.utils.ApiUtils;
@@ -26,23 +27,14 @@ public class RestApiService {
     @Value("${erpnext.server.url}")
     private String serverHost;
 
-    /* -------------------------------------------------------------------------- */
-    /*                                   Getter                                   */
-    /* -------------------------------------------------------------------------- */
     public String getServerHost(){
         return this.serverHost;
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                                 Constructor                                */
-    /* -------------------------------------------------------------------------- */
     public RestApiService(RestTemplate r){
         this.restTemplate = r;
     }
 
-    /* -------------------------------------------------------------------------- */
-    /*                          API Call for ErpNEXT API                          */
-    /* -------------------------------------------------------------------------- */
     public <T, R> ResponseEntity<R> executeApiCall(String url, HttpMethod method, T requestBody,
             User user, ParameterizedTypeReference<R> responseType) throws Exception {
 
@@ -54,11 +46,13 @@ public class RestApiService {
 
             HttpEntity<T> entity = new HttpEntity<>(requestBody, headers);
 
-            // Convert the URL string to URI to prevent RestTemplate from treating {} as path variables
-            URI uri = URI.create(url);
+            // This line is crucial and correctly handles URI encoding.
+            // Since ApiUtils.buildUrl and buildResourceUrl now return properly encoded URLs,
+            // this method will further ensure that the URI is built correctly.
+            URI uri = UriComponentsBuilder.fromHttpUrl(url).build(true).toUri();
 
             ResponseEntity<R> response = restTemplate.exchange(
-                    uri,  // Use URI instead of String
+                    uri,
                     method,
                     entity,
                     responseType);
