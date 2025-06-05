@@ -44,11 +44,14 @@ public class RestApiService {
             headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
             ApiUtils.setUserCookie(user, headers);
 
-            HttpEntity<T> entity = new HttpEntity<>(requestBody, headers);
+            // Handle both String (raw JSON) and other object types
+            HttpEntity<?> entity;
+            if (requestBody instanceof String) {
+                entity = new HttpEntity<>(requestBody, headers);
+            } else {
+                entity = new HttpEntity<>(requestBody, headers);
+            }
 
-            // This line is crucial and correctly handles URI encoding.
-            // Since ApiUtils.buildUrl and buildResourceUrl now return properly encoded URLs,
-            // this method will further ensure that the URI is built correctly.
             URI uri = UriComponentsBuilder.fromHttpUrl(url).build(true).toUri();
 
             ResponseEntity<R> response = restTemplate.exchange(
