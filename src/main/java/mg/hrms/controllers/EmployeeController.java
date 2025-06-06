@@ -2,6 +2,7 @@ package mg.hrms.controllers;
 
 import java.util.List;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,6 +21,7 @@ import mg.hrms.models.args.EmployeeFilterArgs;
 import mg.hrms.services.CompanyService;
 import mg.hrms.services.EmployeeService;
 import mg.hrms.services.GenderService;
+import mg.hrms.services.ExportPdfService;
 
 @Controller
 @RequestMapping("/employees")
@@ -29,13 +31,15 @@ public class EmployeeController {
     private final GenderService genderService;
     private final CompanyService companyService;
     private final ObjectMapper objectMapper;
+    private final ExportPdfService exportPdfService;
 
     @Autowired
-    public EmployeeController(EmployeeService employeeService, GenderService genderService, CompanyService companyService, ObjectMapper objectMapper) {
+    public EmployeeController(EmployeeService employeeService, GenderService genderService, CompanyService companyService, ObjectMapper objectMapper, ExportPdfService export) {
         this.employeeService = employeeService;
         this.genderService = genderService;
         this.companyService = companyService;
         this.objectMapper = objectMapper;
+        this.exportPdfService = export;
     }
 
     @GetMapping
@@ -178,6 +182,33 @@ public class EmployeeController {
             e.printStackTrace();
             model.addAttribute("error", "Failed to load payslip: " + e.getMessage());
             return "redirect:/employees/payslip?employeeId=" + employeeId;
+        }
+    }
+
+    @GetMapping("/payslip/export")
+    public void exportPayslipPdf(HttpServletResponse response,
+                            HttpSession session,
+                            @RequestParam String employeeId,
+                            @RequestParam String payslipId) throws Exception {
+        try {
+            User connectedUser = (User) session.getAttribute("user");
+            if (connectedUser == null) {
+                throw new Exception("User not authenticated");
+            }
+
+            // Get the payslip details
+            SalarySlip payslip = employeeService.getPayslipById(connectedUser, payslipId);
+            Employee employee = employeeService.getById(connectedUser, employeeId);
+
+            // Set response headers for PDF download
+            response.setContentType("application/pdf");
+            response.setHeader("Content-Disposition", "attachment; filename=payslip_" + payslipId + ".pdf");
+
+            // Generate PDF (you'll need to implement this)
+            exportPdfService.generatePayslipPdf(employee, payslip, response.getOutputStream());
+        } catch (Exception e) {
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                            "Failed to generate PDF: " + e.getMessage());
         }
     }
 }
