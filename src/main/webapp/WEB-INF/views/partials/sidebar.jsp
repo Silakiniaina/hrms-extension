@@ -55,9 +55,9 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="<%= request.getContextPath() %>/users" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
-                                <i class="far fa-circle nav-icon"></i>
-                                <p>Salary Info</p>
+                            <a href="${pageContext.request.contextPath}/salary-summary" class="nav-link">
+                                <i class="nav-icon fas fa-file-invoice-dollar"></i>
+                                <p>Salary Summary</p>
                             </a>
                         </li>
                     </ul>
