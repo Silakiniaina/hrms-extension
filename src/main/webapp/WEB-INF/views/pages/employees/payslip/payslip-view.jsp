@@ -20,11 +20,12 @@
             <div class="card-header">
                 <h3 class="card-title">Payslip - <%= dateFormat.format(payslip.getPostingDate()) %></h3>
                 <div class="card-tools">
-                    <button onclick="window.print()" class="btn btn-secondary btn-sm">
-                        <i class="fas fa-print"></i> Print
-                    </button>
+                    <a href="${pageContext.request.contextPath}/employees/payslip/export?employeeId=<%= employee.getEmployeeId() %>&payslipId=<%= payslip.getSlipId() %>"
+                    class="btn btn-danger btn-sm">
+                        <i class="fas fa-file-pdf"></i> Export PDF
+                    </a>
                     <a href="${pageContext.request.contextPath}/employees/payslip?employeeId=<%= employee.getEmployeeId() %>"
-                       class="btn btn-primary btn-sm">
+                    class="btn btn-primary btn-sm">
                         <i class="fas fa-arrow-left"></i> Back
                     </a>
                 </div>
