@@ -24,7 +24,7 @@ public class ImportController {
     @GetMapping
     public String showImportForm(Model model) {
         model.addAttribute("pageTitle", "HRMS Data Import");
-        model.addAttribute("contentPage", "pages/import/import-form.jsp");
+        model.addAttribute("contentPage", "pages/data/import-form.jsp");
         return "layout/main-layout";
     }
 
