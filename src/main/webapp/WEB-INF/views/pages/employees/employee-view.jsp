@@ -85,9 +85,13 @@
                                     <td><%= String.format("%.2f", salary.getNetPay()) %></td>
                                     <td><%= salary.getStatus() %></td>
                                     <td>
-                                        <a href="#" class="btn btn-info btn-sm">
-                                            <i class="fas fa-download"></i> Download
-                                        </a>
+                                        <form action="${pageContext.request.contextPath}/employees/payslip" method="POST" style="display: inline;">
+                                            <input type="hidden" name="employeeId" value="<%= employee.getEmployeeId() %>">
+                                            <input type="hidden" name="payslipId" value="<%= salary.getSlipId() %>">
+                                            <button type="submit" class="btn btn-info btn-sm">
+                                                <i class="fas fa-eye"></i> View Payslip
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                             <% } %>
