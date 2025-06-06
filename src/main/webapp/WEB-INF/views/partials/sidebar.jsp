@@ -78,6 +78,12 @@
                                 <p>Import</p>
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a href="<%= request.getContextPath() %>/reset" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
+                                <i class="far fa-trash nav-icon"></i>
+                                <p>Reset</p>
+                            </a>
+                        </li>
                     </ul>
                 </li>
 
