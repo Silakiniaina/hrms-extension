@@ -1,8 +1,12 @@
 package mg.hrms.services;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
@@ -12,9 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import mg.hrms.models.Employee;
 import mg.hrms.models.User;
+import mg.hrms.models.SalarySummary;
 import mg.hrms.models.SalarySlip;
 import mg.hrms.models.args.EmployeeFilterArgs;
-import mg.hrms.utils.ApiUtils; // Ensure this import is present
+import mg.hrms.utils.ApiUtils;
+
 
 @Service
 public class EmployeeService {
@@ -157,7 +163,7 @@ public class EmployeeService {
         // Updated buildUrl call to pass doctype separately
         String apiUrl = ApiUtils.buildUrl(
             restApiService.getServerHost(),
-            "Salary Slip", // Doctype moved to a separate argument
+            "Salary Slip",
             fields,
             filters
         );
