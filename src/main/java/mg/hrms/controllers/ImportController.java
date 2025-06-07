@@ -10,6 +10,7 @@ import mg.hrms.models.User;
 import mg.hrms.payload.ImportResult;
 import mg.hrms.services.ImportService;
 import java.util.Map;
+import java.util.List; // Importation ajoutée
 
 @Controller
 @RequestMapping("/import")
@@ -57,7 +58,13 @@ public class ImportController {
                 // Import was actually successful - records were created
                 String successMessage = buildSuccessMessage(result);
                 redirectAttributes.addFlashAttribute("success", successMessage);
-                redirectAttributes.addFlashAttribute("importResult", result);
+
+                // Add warnings if any (NOUVEAU)
+                if (result.hasWarnings()) {
+                    redirectAttributes.addFlashAttribute("warnings", result.getWarnings());
+                }
+
+                redirectAttributes.addFlashAttribute("importResult", result); // Garde le résultat complet
 
                 // Log success for debugging
                 System.out.println("Import successful: " + result.getMessage());
@@ -72,15 +79,20 @@ public class ImportController {
 
                 if (result.hasErrors()) {
                     // There were actual errors
-                    redirectAttributes.addFlashAttribute("error",
-                        "Import failed with errors: " + errorMessage);
+                    redirectAttributes.addFlashAttribute("error", errorMessage); // Message général
+                    redirectAttributes.addFlashAttribute("errors", result.getErrors()); // Erreurs détaillées
                 } else {
                     // No errors but no records created
                     redirectAttributes.addFlashAttribute("warning",
                         "Import completed but no records were created. Please check your data format and content.");
                 }
 
-                redirectAttributes.addFlashAttribute("importResult", result);
+                // Add warnings if any (NOUVEAU - même en cas d'échec si des avertissements sont présents)
+                if (result.hasWarnings()) {
+                    redirectAttributes.addFlashAttribute("warnings", result.getWarnings());
+                }
+
+                redirectAttributes.addFlashAttribute("importResult", result); // Garde le résultat complet
 
                 // Enhanced logging for debugging
                 System.out.println("=== IMPORT FAILED DEBUG INFO ===");
