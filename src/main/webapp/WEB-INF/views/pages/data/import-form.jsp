@@ -1,10 +1,20 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ page import="mg.hrms.models.User" %>
-<%@ page import="java.text.SimpleDateFormat" %>
+<%@ page import="mg.hrms.payload.ImportResult" %>
+<%@ page import="java.util.Map" %>
+<%@ page import="java.util.List" %>
 
 <%
     User user = (User) session.getAttribute("user");
-    String message = (String) request.getAttribute("message");
+    // String message = (String) request.getAttribute("message"); // L'ancien message général
+
+    // Récupérer les attributs de flash passés par le contrôleur
+    String successMessage = (String) request.getAttribute("success");
+    String errorMessage = (String) request.getAttribute("error");
+    String warningMessage = (String) request.getAttribute("warning"); // Pour les warnings généraux si pas d'erreurs
+    ImportResult importResult = (ImportResult) request.getAttribute("importResult");
+    Map<String, List<String>> detailedErrors = (Map<String, List<String>>) request.getAttribute("errors");
+    Map<String, List<String>> detailedWarnings = (Map<String, List<String>>) request.getAttribute("warnings"); // NOUVEAU
 %>
 
 <div class="row">
@@ -14,9 +24,55 @@
                 <h3 class="card-title">Import HRMS Data</h3>
             </div>
             <div class="card-body">
-                <% if (message != null) { %>
-                    <div class="alert alert-info">
-                        <%= message %>
+                <%-- Affichage des messages de succès --%>
+                <% if (successMessage != null) { %>
+                    <div class="alert alert-success">
+                        <%= successMessage %>
+                    </div>
+                <% } %>
+
+                <%-- Affichage des messages d'erreur --%>
+                <% if (errorMessage != null) { %>
+                    <div class="alert alert-danger">
+                        <%= errorMessage %>
+                        <% if (detailedErrors != null && !detailedErrors.isEmpty()) { %>
+                            <p><strong>Détails des erreurs :</strong></p>
+                            <ul>
+                                <% for (Map.Entry<String, List<String>> entry : detailedErrors.entrySet()) { %>
+                                    <li><strong><%= entry.getKey().replace("_", " ") %>:</strong>
+                                        <ul>
+                                            <% for (String error : entry.getValue()) { %>
+                                                <li><%= error %></li>
+                                            <% } %>
+                                        </ul>
+                                    </li>
+                                <% } %>
+                            </ul>
+                        <% } %>
+                    </div>
+                <% } %>
+
+                <%-- Affichage des messages d'avertissement --%>
+                <% if (warningMessage != null) { %>
+                    <div class="alert alert-warning">
+                        <%= warningMessage %>
+                    </div>
+                <% } %>
+
+                <% if (detailedWarnings != null && !detailedWarnings.isEmpty()) { %>
+                    <div class="alert alert-warning">
+                        <p><strong>Avertissements :</strong></p>
+                        <ul>
+                            <% for (Map.Entry<String, List<String>> entry : detailedWarnings.entrySet()) { %>
+                                <li><strong><%= entry.getKey().replace("_", " ") %>:</strong>
+                                    <ul>
+                                        <% for (String warning : entry.getValue()) { %>
+                                            <li><%= warning %></li>
+                                        <% } %>
+                                    </ul>
+                                </li>
+                            <% } %>
+                        </ul>
                     </div>
                 <% } %>
 
@@ -56,9 +112,12 @@ document.querySelector('form').addEventListener('submit', function(e) {
     const structuresFile = document.getElementById('structuresFile');
     const recordsFile = document.getElementById('recordsFile');
 
-    if (!employeesFile.value.endsWith('.csv') ||
-        !structuresFile.value.endsWith('.csv') ||
-        !recordsFile.value.endsWith('.csv')) {
+    // Correction: Assurez-vous que les fichiers sont sélectionnés avant de vérifier l'extension
+    const isEmployeesCsv = !employeesFile.value || employeesFile.value.endsWith('.csv');
+    const isStructuresCsv = !structuresFile.value || structuresFile.value.endsWith('.csv');
+    const isRecordsCsv = !recordsFile.value || recordsFile.value.endsWith('.csv');
+
+    if (!isEmployeesCsv || !isStructuresCsv || !isRecordsCsv) {
         alert('Please upload only CSV files');
         e.preventDefault();
     }
