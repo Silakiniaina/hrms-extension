@@ -10,6 +10,7 @@ public class ImportResult {
     private String message;
     private Map<String, List<String>> errors;
     private Map<String, Object> counts;
+    private Map<String, List<String>> warnings; // Pour stocker les avertissements
 
     public ImportResult() {
         this.errors = new HashMap<>();
@@ -68,6 +69,19 @@ public class ImportResult {
             errors = new HashMap<>();
         }
         errors.computeIfAbsent(category, k -> new ArrayList<>()).add(error);
+    }
+
+        public Map<String, List<String>> getWarnings() {
+        return warnings;
+    }
+
+    public void setWarnings(Map<String, List<String>> warnings) {
+        this.warnings = warnings;
+    }
+
+    public boolean hasWarnings() {
+        return warnings != null && !warnings.isEmpty() &&
+               warnings.values().stream().anyMatch(list -> list != null && !list.isEmpty());
     }
 
     @Override

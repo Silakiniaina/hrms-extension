@@ -29,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import mg.hrms.models.*;
-import mg.hrms.payload.ImportResult;
+import mg.hrms.payload.ImportResult; // Assurez-vous que cette importation est présente
 
 @Service
 public class ImportService {
@@ -247,6 +247,7 @@ public class ImportService {
             String message = (String) responseBody.get("message");
             Map<String, Object> counts = (Map<String, Object>) responseBody.get("counts");
             Map<String, Object> errors = (Map<String, Object>) responseBody.get("errors");
+            Map<String, Object> warnings = (Map<String, Object>) responseBody.get("warnings"); // NOUVEAU
 
             result.setSuccess(success);
             result.setMessage(message != null ? message : (success ? "Import completed successfully" : "Import failed"));
@@ -259,6 +260,11 @@ public class ImportService {
             // Process errors
             if (errors != null) {
                 result.setErrors(processErrors(errors));
+            }
+
+            // Process warnings (NOUVEAU)
+            if (warnings != null) {
+                result.setWarnings(processErrors(warnings)); // Réutilise processErrors pour la structure Map<String, List<String>>
             }
 
             // Log the actual result
