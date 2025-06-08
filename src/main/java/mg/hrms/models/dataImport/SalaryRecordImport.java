@@ -1,5 +1,4 @@
-// SalaryRecordImport.java - Model for salary record import data
-package mg.hrms.models;
+package mg.hrms.models.dataImport;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;

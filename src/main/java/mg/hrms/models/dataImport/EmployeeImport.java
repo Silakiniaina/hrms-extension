@@ -1,5 +1,4 @@
-// EmployeeImport.java - Model for employee import data
-package mg.hrms.models;
+package mg.hrms.models.dataImport;
 
 import java.sql.Date;
 

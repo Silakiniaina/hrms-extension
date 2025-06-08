@@ -1,5 +1,4 @@
-// SalaryStructureImport.java - Model for salary structure import data
-package mg.hrms.models;
+package mg.hrms.models.dataImport;
 
 import lombok.Data;
 
