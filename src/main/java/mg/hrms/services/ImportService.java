@@ -24,11 +24,14 @@ import org.slf4j.Logger;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import mg.hrms.models.*;
+import mg.hrms.models.dataImport.EmployeeImport;
+import mg.hrms.models.dataImport.ImportData;
+import mg.hrms.models.dataImport.SalaryRecordImport;
+import mg.hrms.models.dataImport.SalaryStructureImport;
 import mg.hrms.payload.ImportResult; // Assurez-vous que cette importation est présente
 
 @Service
@@ -43,6 +46,7 @@ public class ImportService {
         this.objectMapper = objectMapper;
     }
 
+    @SuppressWarnings("unchecked")
     public ImportResult processImport(MultipartFile employeesFile,
                                     MultipartFile structuresFile,
                                     MultipartFile recordsFile,
@@ -101,6 +105,7 @@ public class ImportService {
         return importData;
     }
 
+    @SuppressWarnings("deprecation")
     private List<EmployeeImport> parseEmployeeFile(InputStream is) throws IOException {
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -133,6 +138,7 @@ public class ImportService {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private List<SalaryStructureImport> parseStructureFile(InputStream is) throws IOException {
         try (var fileReader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
              var csvParser = new CSVParser(fileReader,
@@ -151,6 +157,7 @@ public class ImportService {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private List<SalaryRecordImport> parseRecordFile(InputStream is) throws IOException {
         try (var fileReader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
              var csvParser = new CSVParser(fileReader,
@@ -237,6 +244,7 @@ public class ImportService {
         }).collect(Collectors.toList());
     }
 
+    @SuppressWarnings("unchecked")
     private ImportResult processErpNextResponse(Map<String, Object> responseBody) {
         ImportResult result = new ImportResult();
 

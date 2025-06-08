@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import mg.hrms.models.Company;
 import mg.hrms.models.Gender;
 import mg.hrms.models.User;
 import mg.hrms.utils.ApiUtils;
