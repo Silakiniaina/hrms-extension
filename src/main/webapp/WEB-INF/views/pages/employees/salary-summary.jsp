@@ -1,20 +1,17 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ page import="java.util.List" %>
 <%@ page import="mg.hrms.models.SalarySummary" %>
-
 <%
     List<SalarySummary> summaries = (List<SalarySummary>) request.getAttribute("summaries");
     String selectedMonth = (String) request.getAttribute("selectedMonth");
     String selectedYear = (String) request.getAttribute("selectedYear");
 %>
-
 <div class="row">
     <div class="col-12">
         <div class="card">
             <div class="card-header">
                 <h3 class="card-title">Monthly Salary Summary</h3>
             </div>
-
             <div class="card-body">
                 <form method="get" action="${pageContext.request.contextPath}/salary-summary">
                     <div class="row mb-3">
@@ -27,9 +24,7 @@
                                 <option value="04" <%= "04".equals(selectedMonth) ? "selected" : "" %>>April</option>
                                 <option value="05" <%= "05".equals(selectedMonth) ? "selected" : "" %>>May</option>
                                 <option value="06" <%= "06".equals(selectedMonth) ? "selected" : "" %>>June</option>
-                                <option value="07" <%= "07".equals(selectedMonth) ? "selected" : "" %>
-
-
+                                <option value="07" <%= "07".equals(selectedMonth) ? "selected" : "" %>>July</option>
                                 <option value="08" <%= "08".equals(selectedMonth) ? "selected" : "" %>>August</option>
                                 <option value="09" <%= "09".equals(selectedMonth) ? "selected" : "" %>>September</option>
                                 <option value="10" <%= "10".equals(selectedMonth) ? "selected" : "" %>>October</option>
@@ -46,7 +41,6 @@
                         </div>
                     </div>
                 </form>
-
                 <table id="summaryTable" class="table table-bordered table-striped">
                     <thead>
                         <tr>
@@ -56,34 +50,34 @@
                             <th>Gross Pay</th>
                             <th>Total Deduction</th>
                             <th>Net Pay</th>
-                            <th>Details</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <% if(summaries != null && !summaries.isEmpty()) {
+                        <% if (summaries != null && !summaries.isEmpty()) {
                             for (SalarySummary summary : summaries) { %>
                                 <tr>
-                                    <td><%= summary.getYear() %></td>
-                                    <td><%= summary.getMonthName() %></td>
-                                    <td><%= summary.getEmployeeName() %></td>
-                                    <td><%= String.format("%,.2f", summary.getGrossPay()) %></td>
-                                    <td><%= String.format("%,.2f", summary.getTotalDeduction()) %></td>
-                                    <td><%= String.format("%,.2f", summary.getNetPay()) %></td>
-                                    <td>
+                                    <td><%= summary.getYear() != null ? summary.getYear() : "N/A" %></td>
+                                    <td><%= summary.getMonth() != null ? summary.getMonthName() : "N/A" %></td>
+                                    <td><%= summary.getEmployee() != null ? summary.getEmployee() : "N/A" %></td>
+                                    <td class="text-right"><%= String.format("%,.2f", summary.getGrossPay()) %></td>
+                                    <td class="text-right"><%= String.format("%,.2f", summary.getTotalDeduction()) %></td>
+                                    <td class="text-right"><%= String.format("%,.2f", summary.getNetPay()) %></td>
+                                    <td><%= summary.getStatus() != null ? summary.getStatus() : "N/A" %></td>
+                                    <%--<td>
                                         <button class="btn btn-sm btn-info view-details"
-                                            data-employee-id="<%= summary.getEmployeeId() %>"
-                                            data-employee-name="<%= summary.getEmployeeName() %>"
-                                            data-gross-pay='<%= String.format("%,.2f", summary.getGrossPay()) %>'
-                                            data-total-deduction='<%= String.format("%,.2f", summary.getTotalDeduction()) %>'
-                                            data-net-pay='<%= String.format("%,.2f", summary.getNetPay()) %>'
-                                            data-posting-date="<%= summary.getPostingDate() %>"
-                                            data-status="<%= summary.getStatus() %>">
+                                            data-employee-id="<%= summary.getEmployee() != null ? summary.getEmployee().getEmployeeId() : "" %>"
+                                            data-employee-name="<%= summary.getEmployee() != null ? (summary.getEmployee().getFirstName() + " " + summary.getEmployee().getLastName()) : "N/A" %>"
+                                            data-gross-pay="<%= String.format("%,.2f", summary.getGrossPay()) %>"
+                                            data-total-deduction="<%= String.format("%,.2f", summary.getTotalDeduction()) %>"
+                                            data-net-pay="<%= String.format("%,.2f", summary.getNetPay()) %>"
+                                            data-posting-date="<%= summary.getPostingDate() != null ? summary.getPostingDate() : "N/A" %>"
+                                            data-status="<%= summary.getStatus() != null ? summary.getStatus() : "N/A" %>">
                                             <i class="fas fa-eye"></i> View
                                         </button>
-                                    </td>
+                                    </td>--%>
                                 </tr>
-                            <% } %>
-                        <% } else { %>
+                        <% }} else { %>
                             <tr>
                                 <td colspan="7" class="text-center">No data available</td>
                             </tr>
@@ -94,15 +88,13 @@
         </div>
     </div>
 </div>
-
-<!-- Modal for details -->
 <div class="modal fade" id="detailsModal" tabindex="-1" role="dialog" aria-labelledby="detailsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="detailsModalLabel">Employee Salary Details</h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">×</span>
+                    <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
@@ -145,10 +137,10 @@
         </div>
     </div>
 </div>
-
 <%!
     private String getMonthName(String monthNumber) {
-        switch(monthNumber) {
+        if (monthNumber == null) return "N/A";
+        switch (monthNumber) {
             case "01": return "January";
             case "02": return "February";
             case "03": return "March";
@@ -165,20 +157,15 @@
         }
     }
 %>
-
 <script>
 $(document).ready(function() {
-    // Initialize DataTable
     $('#summaryTable').DataTable({
         "responsive": true,
         "lengthChange": true,
         "autoWidth": false,
         "buttons": ["copy", "csv", "excel", "pdf", "print"]
     }).buttons().container().appendTo('#summaryTable_wrapper .col-md-6:eq(0)');
-
-    // Handle view details button click
     $('.view-details').click(function() {
-        // Populate the modal with data from button attributes
         $('#modalEmployeeId').text($(this).data('employee-id'));
         $('#modalEmployeeName').text($(this).data('employee-name'));
         $('#modalGrossPay').text($(this).data('gross-pay'));
@@ -186,10 +173,20 @@ $(document).ready(function() {
         $('#modalNetPay').text($(this).data('net-pay'));
         $('#modalPostingDate').text($(this).data('posting-date'));
         $('#modalStatus').text($(this).data('status'));
-
-        // Update modal title
         $('#detailsModalLabel').text('Employee Salary Details - ' + $(this).data('employee-name'));
         $('#detailsModal').modal('show');
     });
 });
 </script>
+<style>
+    .card, .modal-content {
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+    .table th, .table td {
+        padding: 10px;
+    }
+    .btn {
+        border-radius: 5px;
+    }
+</style>

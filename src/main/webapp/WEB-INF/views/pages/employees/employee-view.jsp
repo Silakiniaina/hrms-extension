@@ -1,15 +1,15 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <%@ page import="mg.hrms.models.Employee" %>
 <%@ page import="mg.hrms.models.SalarySlip" %>
-<%@ page import="java.text.SimpleDateFormat" %>
+<%@ page import="java.time.format.DateTimeFormatter" %>
 <%@ page import="java.util.List" %>
+<%@ page import="java.time.LocalDate" %> <%-- Import LocalDate --%>
 
 <%
     Employee employee = (Employee) request.getAttribute("employee");
     List<SalarySlip> salaries = (List<SalarySlip>) request.getAttribute("salaries");
-    SimpleDateFormat dateFormat = new SimpleDateFormat("dd-MM-yyyy");
+    DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("dd-MM-yyyy");
 %>
-
 <div class="row">
     <div class="col-12">
         <div class="card">
@@ -28,19 +28,27 @@
                         <table class="table table-bordered">
                             <tr>
                                 <th>Employee ID</th>
-                                <td><%= employee.getEmployeeId() %></td>
+                                <td><%= employee.getEmployeeId() != null ? employee.getEmployeeId() : "N/A" %></td>
                             </tr>
                             <tr>
                                 <th>Full Name</th>
-                                <td><%= employee.getFirstName() + " " + employee.getLastName() %></td>
+                                <td><%= (employee.getFirstName() != null ? employee.getFirstName() : "") + " " +
+                                        (employee.getLastName() != null ? employee.getLastName() : "") %></td>
                             </tr>
                             <tr>
                                 <th>Gender</th>
-                                <td><%= employee.getGender() %></td>
+                                <td><%= employee.getGender() != null ? employee.getGender() : "N/A" %></td>
                             </tr>
                             <tr>
                                 <th>Date of Birth</th>
-                                <td><%= employee.getDateOfBirth() != null ? dateFormat.format(employee.getDateOfBirth()) : "" %></td>
+                                <td>
+                                    <% if (employee.getDateOfBirth() != null) {
+                                        LocalDate dob = employee.getDateOfBirth().toLocalDate(); %>
+                                        <%= dob.format(dateFormat) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
                             </tr>
                         </table>
                     </div>
@@ -49,20 +57,26 @@
                         <table class="table table-bordered">
                             <tr>
                                 <th>Company</th>
-                                <td><%= employee.getCompany() %></td>
+                                <td><%= employee.getCompany() != null ? employee.getCompany().getName() : "N/A" %></td>
                             </tr>
                             <tr>
                                 <th>Date of Joining</th>
-                                <td><%= employee.getDateOfJoining() != null ? dateFormat.format(employee.getDateOfJoining()) : "" %></td>
+                                 <td>
+                                    <% if (employee.getDateOfJoining() != null) {
+                                        LocalDate doj = employee.getDateOfJoining().toLocalDate(); %>
+                                        <%= doj.format(dateFormat) %>
+                                    <% } else { %>
+                                        N/A
+                                    <% } %>
+                                </td>
                             </tr>
                             <tr>
                                 <th>Status</th>
-                                <td><%= employee.getStatus() %></td>
+                                <td><%= employee.getStatus() != null ? employee.getStatus() : "N/A" %></td>
                             </tr>
                         </table>
                     </div>
                 </div>
-
                 <h4>Salary History</h4>
                 <table id="salaryTable" class="table table-bordered table-striped">
                     <thead>
@@ -76,14 +90,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <% if(salaries != null && !salaries.isEmpty()) {
+                        <% if (salaries != null && !salaries.isEmpty()) {
                             for (SalarySlip salary : salaries) { %>
                                 <tr>
-                                    <td><%= salary.getSlipId() %></td>
-                                    <td><%= salary.getPostingDate() != null ? dateFormat.format(salary.getPostingDate()) : "" %></td>
-                                    <td><%= String.format("%.2f", salary.getGrossPay()) %></td>
-                                    <td><%= String.format("%.2f", salary.getNetPay()) %></td>
-                                    <td><%= salary.getStatus() %></td>
+                                    <td><%= salary.getSlipId() != null ? salary.getSlipId() : "N/A" %></td>
+                                    <td><%= salary.getPostingDate() != null ? salary.getPostingDate().toLocalDate().format(dateFormat) : "N/A" %></td>
+                                    <td><%= salary.getGrossPay() != null ? String.format("%,.2f", salary.getGrossPay()) : "0.00" %></td>
+                                    <td><%= salary.getNetPay() != null ? String.format("%,.2f", salary.getNetPay()) : "0.00" %></td>
+                                    <td><%= salary.getStatus() != null ? salary.getStatus() : "N/A" %></td>
                                     <td>
                                         <form action="${pageContext.request.contextPath}/employees/payslip" method="POST" style="display: inline;">
                                             <input type="hidden" name="employeeId" value="<%= employee.getEmployeeId() %>">
@@ -94,10 +108,9 @@
                                         </form>
                                     </td>
                                 </tr>
-                            <% } %>
-                        <% } else { %>
+                        <% }} else { %>
                             <tr>
-                                <td colspan="6" class="text-center">No salary records found</td>
+                                <td colspan="6" class="text-center">No salary slips found</td>
                             </tr>
                         <% } %>
                     </tbody>
@@ -106,14 +119,13 @@
         </div>
     </div>
 </div>
-
 <script>
 $(function () {
     $("#salaryTable").DataTable({
         "responsive": true,
         "lengthChange": true,
         "autoWidth": false,
-        "order": [[1, "desc"]], // Sort by posting date descending
+        "order": [[1, "desc"]],
         "buttons": ["copy", "csv", "excel", "pdf", "print"]
     }).buttons().container().appendTo('#salaryTable_wrapper .col-md-6:eq(0)');
 });
