@@ -110,7 +110,7 @@
                                             <%= stat.getTotalDeductions() != null ? currencyFormat.format(stat.getTotalDeductions()) : "0 €" %>
                                         </td>
                                         <td class="text-right">
-                                            <%= stat.getTotalNetPay() != null ? currencyFormat.format(stat.getTotalNetPay()) : "0 €" %>
+                                            <a href="<%= request.getContextPath() %>/salary-stats/details?year=<%= stat.getYear() %>&month=<%= stat.getMonth() %>"><%= stat.getTotalNetPay() != null ? currencyFormat.format(stat.getTotalNetPay()) : "0 Ar" %></a>
                                         </td>
                                         <td>
                                             <button type="button" class="btn btn-primary btn-sm"

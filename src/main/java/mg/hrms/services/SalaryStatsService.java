@@ -2,6 +2,7 @@ package mg.hrms.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import mg.hrms.models.SalaryStats;
+import mg.hrms.models.EmployeeSalaryDetail;
 import mg.hrms.models.SalaryComponent;
 import mg.hrms.models.User;
 import mg.hrms.models.SalarySlip;
@@ -234,5 +235,155 @@ public class SalaryStatsService {
 
         logger.info("Found {} available years for salary statistics", sortedYears.size());
         return sortedYears;
+    }
+
+    public List<EmployeeSalaryDetail> getEmployeeSalaryDetails(User user, String year, String month) throws Exception {
+        logger.info("Fetching employee salary details for {}-{}", year, month);
+
+        String[] fields = {"name", "employee", "employee_name", "posting_date", "gross_pay", "net_pay"};
+        List<String[]> filters = new ArrayList<>();
+
+        // Filter by year-month
+        if (year != null && month != null) {
+            String startDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "-01";
+            String endDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "-31";
+            filters.add(new String[]{"posting_date", ">=", startDate});
+            filters.add(new String[]{"posting_date", "<=", endDate});
+        }
+
+        // Only include submitted salary slips
+        filters.add(new String[]{"docstatus", "=", "1"});
+
+        // Initialize variables for pagination
+        int start = 0;
+        List<Map<String, Object>> allSalaryData = new ArrayList<>();
+        boolean hasMoreData = true;
+
+        // Fetch data in pages until no more data is available
+        while (hasMoreData) {
+            String apiUrl = restApiService.buildUrl("Salary Slip", fields, filters)
+                    + "&limit_start=" + start + "&limit_page_length=" + PAGE_SIZE;
+
+            var response = restApiService.executeApiCall(
+                    apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
+
+            if (response.getBody() == null || response.getBody().get("data") == null) {
+                logger.warn("No salary data found for {}-{}", year, month);
+                break;
+            }
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> salaryData = (List<Map<String, Object>>) response.getBody().get("data");
+            allSalaryData.addAll(salaryData);
+
+            // Check if more data exists
+            if (salaryData.size() < PAGE_SIZE) {
+                hasMoreData = false;
+            } else {
+                start += PAGE_SIZE;
+            }
+        }
+
+        // Group by employee and calculate details
+        Map<String, EmployeeSalaryDetail> employeeDetailsMap = new HashMap<>();
+
+        for (Map<String, Object> slip : allSalaryData) {
+            String slipId = (String) slip.get("name");
+            String employeeId = (String) slip.get("employee");
+            String employeeName = (String) slip.get("employee_name");
+
+            if (slipId == null || employeeId == null) continue;
+
+            // Fetch detailed salary slip
+            SalarySlip detailedSlip = salarySlipService.getById(user, slipId);
+            if (detailedSlip == null) {
+                logger.warn("Failed to fetch detailed salary slip for ID: {}", slipId);
+                continue;
+            }
+
+            EmployeeSalaryDetail detail = employeeDetailsMap.getOrDefault(employeeId, new EmployeeSalaryDetail());
+            detail.setEmployeeId(employeeId);
+            detail.setEmployeeName(employeeName);
+            detail.setYear(year);
+            detail.setMonth(month);
+
+            // Initialize totals if null
+            if (detail.getTotalGrossPay() == null) detail.setTotalGrossPay(0.0);
+            if (detail.getTotalNetPay() == null) detail.setTotalNetPay(0.0);
+            if (detail.getTotalDeductions() == null) detail.setTotalDeductions(0.0);
+
+            // Add values
+            Double grossPay = getDoubleValue(detailedSlip.getGrossPay());
+            Double netPay = getDoubleValue(detailedSlip.getNetPay());
+
+            detail.setTotalGrossPay(detail.getTotalGrossPay() + grossPay);
+            detail.setTotalNetPay(detail.getTotalNetPay() + netPay);
+
+            // Process earnings and deductions
+            processEmployeeComponents(detailedSlip, "earnings", detail, true);
+            processEmployeeComponents(detailedSlip, "deductions", detail, false);
+
+            // Add salary slip reference
+            if (detail.getSalarySlips() == null) {
+                detail.setSalarySlips(new ArrayList<>());
+            }
+            detail.getSalarySlips().add(detailedSlip);
+
+            employeeDetailsMap.put(employeeId, detail);
+        }
+
+        // Convert to list and sort by employee name
+        List<EmployeeSalaryDetail> result = new ArrayList<>(employeeDetailsMap.values());
+        result.sort((a, b) -> {
+            if (a.getEmployeeName() == null) return 1;
+            if (b.getEmployeeName() == null) return -1;
+            return a.getEmployeeName().compareTo(b.getEmployeeName());
+        });
+
+        logger.info("Retrieved {} employee salary details for {}-{}", result.size(), year, month);
+        return result;
+    }
+
+    private void processEmployeeComponents(SalarySlip slip, String componentType, EmployeeSalaryDetail detail, boolean isEarning) {
+        List<SalaryComponent> components = componentType.equals("earnings") ? slip.getEarnings() : slip.getDeductions();
+
+        if (components == null) return;
+
+        List<SalaryComponent> existingComponents = isEarning ? detail.getEarningsDetails() : detail.getDeductionsDetails();
+        if (existingComponents == null) {
+            existingComponents = new ArrayList<>();
+            if (isEarning) {
+                detail.setEarningsDetails(existingComponents);
+            } else {
+                detail.setDeductionsDetails(existingComponents);
+            }
+        }
+
+        for (SalaryComponent comp : components) {
+            String name = comp.getName();
+            Double amount = getDoubleValue(comp.getAmount());
+
+            if (name != null && amount != null && amount > 0) {
+                // Find existing component or create new one
+                SalaryComponent existingComp = existingComponents.stream()
+                    .filter(c -> name.equals(c.getName()))
+                    .findFirst()
+                    .orElse(null);
+
+                if (existingComp != null) {
+                    existingComp.setAmount(existingComp.getAmount() + amount);
+                } else {
+                    SalaryComponent newComp = new SalaryComponent();
+                    newComp.setName(name);
+                    newComp.setType(isEarning ? "Earning" : "Deduction");
+                    newComp.setAmount(amount);
+                    existingComponents.add(newComp);
+                }
+
+                if (!isEarning) {
+                    detail.setTotalDeductions(detail.getTotalDeductions() + amount);
+                }
+            }
+        }
     }
 }
