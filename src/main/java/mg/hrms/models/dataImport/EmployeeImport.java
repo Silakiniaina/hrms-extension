@@ -1,10 +1,9 @@
 package mg.hrms.models.dataImport;
 
-import java.sql.Date;
-
 import com.fasterxml.jackson.annotation.JsonFormat;
-
 import lombok.Data;
+
+import java.sql.Date;
 
 @Data
 public class EmployeeImport {
@@ -12,12 +11,11 @@ public class EmployeeImport {
     private String lastName;
     private String firstName;
     private String gender;
+    private String company;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
     private Date hireDate;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
     private Date birthDate;
-
-    private String company;
 }

@@ -7,7 +7,6 @@ import lombok.Data;
 public class SalaryRecordImport {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
     private String month;
-
     private String employeeRef;
     private Double baseSalary;
     private String salaryStructure;
