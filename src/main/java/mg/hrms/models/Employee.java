@@ -1,44 +1,35 @@
 package mg.hrms.models;
 
 import java.sql.Date;
-
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import java.util.List;
+import com.fasterxml.jackson.annotation.*;
+import lombok.*;
 
 @Data
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Employee {
     @JsonProperty("name")
     private String employeeId;
-
     @JsonProperty("last_name")
     private String lastName;
-
     @JsonProperty("first_name")
     private String firstName;
-
     @JsonProperty("gender")
-    private String gender;
-
+    private Gender gender; 
     @JsonProperty("date_of_birth")
     private Date dateOfBirth;
-
     @JsonProperty("date_of_joining")
     private Date dateOfJoining;
-
     @JsonProperty("company")
-    private String company;
-
+    private Company company; 
     @JsonProperty("status")
     private String status;
+
+    private List<SalaryStructureAssignment> salaryAssignments; 
+
+    public String getFullName(){
+        return ""+this.getLastName()+" "+this.getFirstName();
+    }
 }
