@@ -47,7 +47,10 @@ public class SalarySlipService {
         logger.info("Fetching salary slips for employee: {}", employeeId);
         String[] fields = {"name", "employee","employee_name", "posting_date", "salary_structure", "gross_pay", "net_pay", "status","bank_name","bank_account_no"};
         List<String[]> filters = new ArrayList<>();
-        filters.add(new String[]{"employee", "=", employeeId});
+        if(employeeId != null){
+            filters.add(new String[]{"employee", "=", employeeId});
+        }
+
         filters.add(new String[]{"docstatus", "=", "1"});
 
         String apiUrl = restApiService.buildUrl("Salary Slip", fields, filters);

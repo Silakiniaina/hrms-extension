@@ -8,9 +8,9 @@ import lombok.*;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SalaryComponent {
-    @JsonProperty("name")
+    @JsonProperty("salary_component")
     private String name;
-    @JsonProperty("type") // "Earning" or "Deduction"
+    @JsonProperty("type")
     private String type;
     @JsonProperty("amount")
     private double amount;

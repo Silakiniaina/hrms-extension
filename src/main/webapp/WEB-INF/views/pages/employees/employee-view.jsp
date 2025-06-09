@@ -37,7 +37,7 @@
                             </tr>
                             <tr>
                                 <th>Gender</th>
-                                <td><%= employee.getGender() != null ? employee.getGender() : "N/A" %></td>
+                                <td><%= employee.getGender() != null ? employee.getGender().getName() : "N/A" %></td>
                             </tr>
                             <tr>
                                 <th>Date of Birth</th>

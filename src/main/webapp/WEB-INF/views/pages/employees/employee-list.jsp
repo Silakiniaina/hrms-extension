@@ -92,7 +92,7 @@
                                     <td><%= employee.getEmployeeId() != null ? employee.getEmployeeId() : "N/A" %></td>
                                     <td><%= (employee.getFirstName() != null ? employee.getFirstName() : "") + " " +
                                             (employee.getLastName() != null ? employee.getLastName() : "") %></td>
-                                    <td><%= employee.getGender() != null ? employee.getGender() : "N/A" %></td>
+                                    <td><%= employee.getGender() != null ? employee.getGender().getName() : "N/A" %></td>
                                     <td>
                                         <% if (employee.getDateOfBirth() != null) {
                                             // Conversion de java.sql.Date en java.time.LocalDate
