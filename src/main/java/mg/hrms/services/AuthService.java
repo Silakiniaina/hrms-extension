@@ -1,7 +1,9 @@
 package mg.hrms.services;
 
-import java.util.Map;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
+import mg.hrms.models.User;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -14,90 +16,74 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import mg.hrms.models.User;
+import java.util.Map;
 
 @Service
 public class AuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-
     @Value("${erpnext.server.url}")
     private String serverHost;
 
-    /* -------------------------------------------------------------------------- */
-    /* Constructor                                */
-    /* -------------------------------------------------------------------------- */
     public AuthService(RestTemplate restTemplate, ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
     }
 
-    /* -------------------------------------------------------------------------- */
-    /* Function to login                             */
-    /* -------------------------------------------------------------------------- */
-    @SuppressWarnings({ "unchecked", "deprecation", "null" })
     public User login(String username, String password) throws Exception {
+        logger.info("Attempting login for user: {}", username);
         try {
-            // This URL does not use fields or filters, so no change needed here.
             String url = UriComponentsBuilder
                     .fromHttpUrl(serverHost + "/api/method/login")
                     .build()
                     .toUriString();
 
-            Map<String, String> requestBody = Map.of(
-                    "usr", username,
-                    "pwd", password
-            );
-            String jsonBody = objectMapper.writeValueAsString(requestBody);
-
+            Map<String, String> requestBody = Map.of("usr", username, "pwd", password);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.setAccept(java.util.Collections.singletonList(MediaType.APPLICATION_JSON));
 
-            HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
+            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(requestBody), headers);
 
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url,
-                    HttpMethod.POST,
-                    entity,
-                    String.class
-            );
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    url, HttpMethod.POST, entity, new org.springframework.core.ParameterizedTypeReference<>() {});
 
-            if (response.getStatusCode() == HttpStatus.OK) {
-                Map<String, Object> responseBody = objectMapper.readValue(response.getBody(), Map.class);
+            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
+                Map<String, Object> responseBody = response.getBody();
                 if ("Logged In".equals(responseBody.get("message"))) {
-                    String userId = (String) responseBody.get("user_id");
-                    String fullName = (String) responseBody.get("full_name");
-                    String userLang = (String) responseBody.getOrDefault("user_lang", "en");
-                    String systemUser = (String) responseBody.getOrDefault("system_user", "yes");
-                    String sid = null;
+                    String sid = response.getHeaders().get("Set-Cookie")
+                            .stream()
+                            .filter(cookie -> cookie.contains("sid="))
+                            .map(cookie -> cookie.split("sid=")[1].split(";")[0])
+                            .findFirst()
+                            .orElse(null);
 
-                    // Extraction du cookie sid
-                    if (response.getHeaders().get("Set-Cookie") != null) {
-                        for (String cookie : response.getHeaders().get("Set-Cookie")) {
-                            if (cookie.contains("sid=")) {
-                                sid = cookie.split("sid=")[1].split(";")[0];
-                                break;
-                            }
-                        }
-                    }
-
-                    return new User(userId, fullName, userLang, systemUser, sid);
+                    User user = new User(
+                            (String) responseBody.get("user_id"),
+                            (String) responseBody.get("full_name"),
+                            (String) responseBody.getOrDefault("user_lang", "en"),
+                            (String) responseBody.getOrDefault("system_user", "yes"),
+                            sid
+                    );
+                    logger.info("Login successful for user: {}", username);
+                    return user;
                 }
+                logger.error("Invalid response from server for user: {}", username);
                 throw new Exception("Invalid response from server");
             }
+            logger.error("Login failed for user: {} with HTTP status: {}", username, response.getStatusCodeValue());
             throw new Exception("HTTP " + response.getStatusCodeValue());
-
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode() == HttpStatus.UNAUTHORIZED) {
-                throw new Exception("Incorrect username or password");
-            }
-            throw new Exception("Login failed: HTTP " + e.getStatusCode() + " - " + e.getMessage());
+            logger.error("Login failed for user: {} with HTTP status: {}", username, e.getStatusCode());
+            throw new Exception(e.getStatusCode() == HttpStatus.UNAUTHORIZED
+                    ? "Incorrect username or password"
+                    : "Login failed: HTTP " + e.getStatusCode() + " - " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new Exception("Login failed: " + e.getMessage());
+            logger.error("Login failed for user: {} with error: {}", username, e.getMessage());
+            throw new Exception("Login failed: " + e.getMessage(), e);
         }
     }
 }
