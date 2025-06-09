@@ -1,6 +1,7 @@
 package mg.hrms.controllers;
 
 import jakarta.servlet.http.HttpSession;
+import mg.hrms.models.EmployeeSalaryDetail;
 import mg.hrms.models.SalaryStats;
 import mg.hrms.models.User;
 import mg.hrms.services.SalaryStatsService;
@@ -65,6 +66,68 @@ public class SalaryStatsController {
             model.addAttribute("error", "Failed to load salary statistics: " + e.getMessage());
             return "layout/main-layout";
         }
+    }
+
+    @GetMapping("/details")
+    public String getEmployeeSalaryDetails(Model model, HttpSession session,
+                                        @RequestParam String year,
+                                        @RequestParam String month) {
+        logger.info("Fetching employee salary details for {}-{}", year, month);
+        try {
+            User user = validateUser(session);
+
+            List<EmployeeSalaryDetail> employeeDetails = salaryStatsService.getEmployeeSalaryDetails(user, year, month);
+
+            // Calculate totals for the month
+            double monthlyTotalGrossPay = employeeDetails.stream()
+                .mapToDouble(e -> e.getTotalGrossPay() != null ? e.getTotalGrossPay() : 0.0)
+                .sum();
+            double monthlyTotalNetPay = employeeDetails.stream()
+                .mapToDouble(e -> e.getTotalNetPay() != null ? e.getTotalNetPay() : 0.0)
+                .sum();
+            double monthlyTotalDeductions = employeeDetails.stream()
+                .mapToDouble(e -> e.getTotalDeductions() != null ? e.getTotalDeductions() : 0.0)
+                .sum();
+
+            model.addAttribute("pageTitle", "Employee Salary Details - " + getMonthName(month) + " " + year);
+            model.addAttribute("contentPage", "pages/stats/salary-details.jsp");
+            model.addAttribute("employeeDetails", employeeDetails);
+            model.addAttribute("selectedYear", year);
+            model.addAttribute("selectedMonth", month);
+            model.addAttribute("monthName", getMonthName(month));
+            model.addAttribute("monthlyTotalGrossPay", monthlyTotalGrossPay);
+            model.addAttribute("monthlyTotalNetPay", monthlyTotalNetPay);
+            model.addAttribute("monthlyTotalDeductions", monthlyTotalDeductions);
+
+            logger.info("Successfully loaded employee salary details for {}-{} with {} employees", year, month, employeeDetails.size());
+            return "layout/main-layout";
+        } catch (Exception e) {
+            logger.error("Failed to load employee salary details: {}", e.getMessage());
+            model.addAttribute("pageTitle", "Employee Salary Details");
+            model.addAttribute("contentPage", "pages/stats/salary-details.jsp");
+            model.addAttribute("error", "Failed to load employee salary details: " + e.getMessage());
+            return "layout/main-layout";
+        }
+    }
+
+    private String getMonthName(String month) {
+        if (month == null) return "";
+
+        String[] monthNames = {
+            "", "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        };
+
+        try {
+            int monthNum = Integer.parseInt(month);
+            if (monthNum >= 1 && monthNum <= 12) {
+                return monthNames[monthNum];
+            }
+        } catch (NumberFormatException e) {
+            // Ignore
+        }
+
+        return month;
     }
 
     private User validateUser(HttpSession session) throws Exception {
