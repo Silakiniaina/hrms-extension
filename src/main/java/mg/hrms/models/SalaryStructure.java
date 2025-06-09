@@ -1,5 +1,6 @@
 package mg.hrms.models;
 
+import java.util.List;
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 
@@ -7,7 +8,11 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Company {
+public class SalaryStructure {
     @JsonProperty("name")
     private String name;
+    @JsonProperty("company")
+    private String company;
+    @JsonProperty("components")
+    private List<SalaryComponent> components; 
 }

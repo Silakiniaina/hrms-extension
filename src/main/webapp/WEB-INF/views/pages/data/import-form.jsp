@@ -3,123 +3,155 @@
 <%@ page import="mg.hrms.payload.ImportResult" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="java.util.List" %>
-
 <%
     User user = (User) session.getAttribute("user");
-    // String message = (String) request.getAttribute("message"); // L'ancien message général
-
-    // Récupérer les attributs de flash passés par le contrôleur
     String successMessage = (String) request.getAttribute("success");
     String errorMessage = (String) request.getAttribute("error");
-    String warningMessage = (String) request.getAttribute("warning"); // Pour les warnings généraux si pas d'erreurs
-    ImportResult importResult = (ImportResult) request.getAttribute("importResult");
     Map<String, List<String>> detailedErrors = (Map<String, List<String>>) request.getAttribute("errors");
-    Map<String, List<String>> detailedWarnings = (Map<String, List<String>>) request.getAttribute("warnings"); // NOUVEAU
+    Map<String, List<String>> detailedWarnings = (Map<String, List<String>>) request.getAttribute("warnings");
 %>
-
-<div class="row">
-    <div class="col-md-8 offset-md-2">
-        <div class="card">
-            <div class="card-header">
-                <h3 class="card-title">Import HRMS Data</h3>
-            </div>
-            <div class="card-body">
-                <%-- Affichage des messages de succès --%>
-                <% if (successMessage != null) { %>
-                    <div class="alert alert-success">
-                        <%= successMessage %>
-                    </div>
-                <% } %>
-
-                <%-- Affichage des messages d'erreur --%>
-                <% if (errorMessage != null) { %>
-                    <div class="alert alert-danger">
-                        <%= errorMessage %>
-                        <% if (detailedErrors != null && !detailedErrors.isEmpty()) { %>
-                            <p><strong>Détails des erreurs :</strong></p>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="card-title mb-0">Import HRMS Data</h3>
+                </div>
+                <div class="card-body">
+                    <% if (successMessage != null) { %>
+                        <div class="alert alert-success alert-dismissible fade show" role="alert">
+                            <%= successMessage %>
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    <% } %>
+                    <% if (errorMessage != null) { %>
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <%= errorMessage %>
+                            <% if (detailedErrors != null && !detailedErrors.isEmpty()) { %>
+                                <p><strong>Detailed Errors:</strong></p>
+                                <ul>
+                                    <% for (Map.Entry<String, List<String>> entry : detailedErrors.entrySet()) { %>
+                                        <li><strong><%= entry.getKey().replace("_", " ").toUpperCase() %>:</strong>
+                                            <ul>
+                                                <% for (String error : entry.getValue()) { %>
+                                                    <li><%= error %></li>
+                                                <% } %>
+                                            </ul>
+                                        </li>
+                                    <% } %>
+                                </ul>
+                            <% } %>
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    <% } %>
+                    <% if (detailedWarnings != null && !detailedWarnings.isEmpty()) { %>
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+                            <p><strong>Warnings:</strong></p>
                             <ul>
-                                <% for (Map.Entry<String, List<String>> entry : detailedErrors.entrySet()) { %>
-                                    <li><strong><%= entry.getKey().replace("_", " ") %>:</strong>
+                                <% for (Map.Entry<String, List<String>> entry : detailedWarnings.entrySet()) { %>
+                                    <li><strong><%= entry.getKey().replace("_", " ").toUpperCase() %>:</strong>
                                         <ul>
-                                            <% for (String error : entry.getValue()) { %>
-                                                <li><%= error %></li>
+                                            <% for (String warning : entry.getValue()) { %>
+                                                <li><%= warning %></li>
                                             <% } %>
                                         </ul>
                                     </li>
                                 <% } %>
                             </ul>
-                        <% } %>
-                    </div>
-                <% } %>
-
-                <%-- Affichage des messages d'avertissement --%>
-                <% if (warningMessage != null) { %>
-                    <div class="alert alert-warning">
-                        <%= warningMessage %>
-                    </div>
-                <% } %>
-
-                <% if (detailedWarnings != null && !detailedWarnings.isEmpty()) { %>
-                    <div class="alert alert-warning">
-                        <p><strong>Avertissements :</strong></p>
-                        <ul>
-                            <% for (Map.Entry<String, List<String>> entry : detailedWarnings.entrySet()) { %>
-                                <li><strong><%= entry.getKey().replace("_", " ") %>:</strong>
-                                    <ul>
-                                        <% for (String warning : entry.getValue()) { %>
-                                            <li><%= warning %></li>
-                                        <% } %>
-                                    </ul>
-                                </li>
-                            <% } %>
-                        </ul>
-                    </div>
-                <% } %>
-
-                <form method="post" action="${pageContext.request.contextPath}/import" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label for="employeesFile">Employees File (CSV):</label>
-                        <input type="file" name="employeesFile" id="employeesFile" class="form-control-file" accept=".csv" required>
-                        <small class="form-text text-muted">Upload employee data CSV file (format: Ref,Nom,Prenom,genre,Date embauche,date naissance,company)</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="structuresFile">Salary Structures File (CSV):</label>
-                        <input type="file" name="structuresFile" id="structuresFile" class="form-control-file" accept=".csv" required>
-                        <small class="form-text text-muted">Upload salary structure CSV file (format: salary structure,name,Abbr,type,valeur,company)</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="recordsFile">Salary Records File (CSV):</label>
-                        <input type="file" name="recordsFile" id="recordsFile" class="form-control-file" accept=".csv" required>
-                        <small class="form-text text-muted">Upload salary records CSV file (format: Mois,Ref Employe,Salaire Base,Salaire)</small>
-                    </div>
-
-                    <div class="form-group text-center">
-                        <button type="submit" class="btn btn-primary">Import Data</button>
-                        <a href="${pageContext.request.contextPath}/dashboard" class="btn btn-secondary">Cancel</a>
-                    </div>
-                </form>
+                            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                    <% } %>
+                    <form method="post" action="${pageContext.request.contextPath}/import" enctype="multipart/form-data" id="importForm">
+                        <div class="form-group">
+                            <label for="employeesFile">Employees File (CSV):</label>
+                            <input type="file" name="employeesFile" id="employeesFile" class="form-control-file" accept=".csv">
+                            <small class="form-text text-muted">
+                                Upload a CSV file with employee data (format: Ref,Nom,Prenom,genre,Date embauche,date naissance,company).
+                                Example: EMP001,Doe,John,Male,01/01/2020,15/05/1990,Acme Corp
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="structuresFile">Salary Structures File (CSV):</label>
+                            <input type="file" name="structuresFile" id="structuresFile" class="form-control-file" accept=".csv">
+                            <small class="form-text text-muted">
+                                Upload a CSV file with salary structure data (format: salary structure,name,Abbr,type,valeur,company).
+                                Example: STR001,Basic Salary,BAS,Fixed,50000,Acme Corp
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label for="recordsFile">Salary Records File (CSV):</label>
+                            <input type="file" name="recordsFile" id="recordsFile" class="form-control-file" accept=".csv">
+                            <small class="form-text text-muted">
+                                Upload a CSV file with salary records (format: Mois,Ref Employe,Salaire Base,Salaire).
+                                Example: 01/2025,EMP001,50000,STR001
+                            </small>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            At least one file is required. Ensure files are in CSV format with correct headers.
+                        </div>
+                        <div class="form-group text-center">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-upload mr-2"></i>Import Data
+                            </button>
+                            <a href="${pageContext.request.contextPath}/dashboard" class="btn btn-secondary btn-lg ml-2">Cancel</a>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
-
 <script>
-// Client-side validation for file types
-document.querySelector('form').addEventListener('submit', function(e) {
-    const employeesFile = document.getElementById('employeesFile');
-    const structuresFile = document.getElementById('structuresFile');
-    const recordsFile = document.getElementById('recordsFile');
+    document.getElementById('importForm').addEventListener('submit', function(e) {
+        const employeesFile = document.getElementById('employeesFile').value;
+        const structuresFile = document.getElementById('structuresFile').value;
+        const recordsFile = document.getElementById('recordsFile').value;
 
-    // Correction: Assurez-vous que les fichiers sont sélectionnés avant de vérifier l'extension
-    const isEmployeesCsv = !employeesFile.value || employeesFile.value.endsWith('.csv');
-    const isStructuresCsv = !structuresFile.value || structuresFile.value.endsWith('.csv');
-    const isRecordsCsv = !recordsFile.value || recordsFile.value.endsWith('.csv');
+        // Check if at least one file is selected
+        if (!employeesFile && !structuresFile && !recordsFile) {
+            alert('Please upload at least one CSV file.');
+            e.preventDefault();
+            return;
+        }
 
-    if (!isEmployeesCsv || !isStructuresCsv || !isRecordsCsv) {
-        alert('Please upload only CSV files');
-        e.preventDefault();
-    }
-});
+        // Validate file extensions
+        const validExtension = file => !file || file.toLowerCase().endsWith('.csv');
+        if (!validExtension(employeesFile) || !validExtension(structuresFile) || !validExtension(recordsFile)) {
+            alert('Please upload only CSV files.');
+            e.preventDefault();
+        }
+    });
 </script>
+<style>
+    .card {
+        border-radius: 10px;
+        margin-top: 20px;
+    }
+    .card-header {
+        border-radius: 10px 10px 0 0;
+    }
+    .form-control-file {
+        padding: 8px;
+    }
+    .btn {
+        border-radius: 5px;
+        padding: 10px 20px;
+    }
+    .alert {
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+    .alert ul {
+        margin-bottom: 0;
+    }
+    small.form-text {
+        margin-top: 5px;
+    }
+</style>

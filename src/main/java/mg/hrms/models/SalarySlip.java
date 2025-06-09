@@ -2,55 +2,39 @@ package mg.hrms.models;
 
 import java.sql.Date;
 import java.util.List;
-import java.util.Map;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.fasterxml.jackson.annotation.*;
+import lombok.*;
 
 @Data
-@Getter
-@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SalarySlip {
     @JsonProperty("name")
     private String slipId;
-
     @JsonProperty("employee")
-    private String employeeId;
-
+    private String employee;
     @JsonProperty("employee_name")
     private String employeeName;
-
     @JsonProperty("posting_date")
     private Date postingDate;
-
+    @JsonProperty("salary_structure")
+    private String salaryStructure;
     @JsonProperty("gross_pay")
     private Double grossPay;
-
     @JsonProperty("net_pay")
     private Double netPay;
-
     @JsonProperty("status")
     private String status;
-
-    @JsonProperty("earnings")
-    private List<Map<String, Object>> earnings;
-
-    @JsonProperty("deductions")
-    private List<Map<String, Object>> deductions;
-
-    @JsonProperty("company")
-    private String company;
-
     @JsonProperty("bank_name")
     private String bankName;
-
     @JsonProperty("bank_account_no")
     private String bankAccountNo;
+    @JsonProperty("earnings")
+    private List<SalaryComponent> earnings;
+    @JsonProperty("deductions")
+    private List<SalaryComponent> deductions;
+
+    private SalaryStructure salaryStructureObj;
+    private Employee employeeObj;
 }

@@ -7,7 +7,11 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Company {
+public class SalaryComponent {
     @JsonProperty("name")
     private String name;
+    @JsonProperty("type") // "Earning" or "Deduction"
+    private String type;
+    @JsonProperty("amount")
+    private double amount;
 }

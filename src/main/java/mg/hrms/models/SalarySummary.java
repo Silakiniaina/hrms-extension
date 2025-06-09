@@ -1,43 +1,32 @@
 package mg.hrms.models;
 
-import java.util.List;
-import java.util.Map;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
-
-import lombok.Data;
+import java.sql.Date;
+import com.fasterxml.jackson.annotation.*;
+import lombok.*;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SalarySummary {
+    @JsonProperty("employee_name")
+    private String employee;
     @JsonProperty("month")
     private String month;
-
     @JsonProperty("year")
     private String year;
-
-    @JsonProperty("employee_name")
-    private String employeeName;
-
     @JsonProperty("gross_pay")
     private double grossPay;
-
     @JsonProperty("total_deduction")
     private double totalDeduction;
-
     @JsonProperty("net_pay")
     private double netPay;
-
-    // Additional details for modal
-    @JsonProperty("employee_id")
-    private String employeeId;
-
     @JsonProperty("posting_date")
-    private String postingDate;
-
+    private Date postingDate;
     @JsonProperty("status")
     private String status;
 
-    // Add helper method for month name
+    /* -------------------------------------------------------------------------- */
+    /*              Get the month name value according to its number              */
+    /* -------------------------------------------------------------------------- */
     public String getMonthName() {
         switch(month) {
             case "01": return "January";

@@ -1,9 +1,8 @@
-// ImportData.java - Main container for all import data
-package mg.hrms.models;
-
-import java.util.List;
+package mg.hrms.models.dataImport;
 
 import lombok.Data;
+
+import java.util.List;
 
 @Data
 public class ImportData {
