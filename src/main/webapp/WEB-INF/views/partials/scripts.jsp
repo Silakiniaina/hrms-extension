@@ -1,5 +1,3 @@
-<!-- jQuery -->
-<script src="<%= request.getContextPath() %>/adminlte/plugins/jquery/jquery.min.js"></script>
 <!-- Bootstrap 4 -->
 <script src="<%= request.getContextPath() %>/adminlte/plugins/bootstrap/js/bootstrap.bundle.min.js"></script>
 <!-- AdminLTE App -->
