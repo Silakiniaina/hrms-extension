@@ -48,7 +48,7 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a href="${pageContext.request.contextPath}/salary-evolution" class="nav-link">
+                            <a href="${pageContext.request.contextPath}/salary-charts" class="nav-link">
                                 <i class="nav-icon fas fa-file-invoice-dollar"></i>
                                 <p>Salary Evolution</p>
                             </a>

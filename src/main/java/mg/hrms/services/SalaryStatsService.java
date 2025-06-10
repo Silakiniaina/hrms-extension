@@ -6,6 +6,7 @@ import mg.hrms.models.EmployeeSalaryDetail;
 import mg.hrms.models.SalaryComponent;
 import mg.hrms.models.User;
 import mg.hrms.models.SalarySlip;
+import java.time.YearMonth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
@@ -237,18 +238,139 @@ public class SalaryStatsService {
         return sortedYears;
     }
 
+    // public List<EmployeeSalaryDetail> getEmployeeSalaryDetails(User user, String year, String month) throws Exception {
+    //     logger.info("Fetching employee salary details for {}-{}", year, month);
+    //
+    //     String[] fields = {"name", "employee", "employee_name", "posting_date", "gross_pay", "net_pay"};
+    //     List<String[]> filters = new ArrayList<>();
+    //
+    //     // Filter by year-month
+    //     if (year != null && month != null) {
+    //         String startDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "01-01";
+    //         String endDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "12-31";
+    //         filters.add(new String[]{"posting_date", ">=", startDate});
+    //         filters.add(new String[]{"posting_date", "<=", endDate});
+    //     }
+    //
+    //     // Only include submitted salary slips
+    //     filters.add(new String[]{"docstatus", "=", "1"});
+    //
+    //     // Initialize variables for pagination
+    //     int start = 0;
+    //     List<Map<String, Object>> allSalaryData = new ArrayList<>();
+    //     boolean hasMoreData = true;
+    //
+    //     // Fetch data in pages until no more data is available
+    //     while (hasMoreData) {
+    //         String apiUrl = restApiService.buildUrl("Salary Slip", fields, filters)
+    //                 + "&limit_start=" + start + "&limit_page_length=" + PAGE_SIZE;
+    //
+    //         var response = restApiService.executeApiCall(
+    //                 apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
+    //
+    //         if (response.getBody() == null || response.getBody().get("data") == null) {
+    //             logger.warn("No salary data found for {}-{}", year, month);
+    //             break;
+    //         }
+    //
+    //         @SuppressWarnings("unchecked")
+    //         List<Map<String, Object>> salaryData = (List<Map<String, Object>>) response.getBody().get("data");
+    //         allSalaryData.addAll(salaryData);
+    //
+    //         // Check if more data exists
+    //         if (salaryData.size() < PAGE_SIZE) {
+    //             hasMoreData = false;
+    //         } else {
+    //             start += PAGE_SIZE;
+    //         }
+    //     }
+    //
+    //     // Group by employee and calculate details
+    //     Map<String, EmployeeSalaryDetail> employeeDetailsMap = new HashMap<>();
+    //
+    //     for (Map<String, Object> slip : allSalaryData) {
+    //         String slipId = (String) slip.get("name");
+    //         String employeeId = (String) slip.get("employee");
+    //         String employeeName = (String) slip.get("employee_name");
+    //
+    //         if (slipId == null || employeeId == null) continue;
+    //
+    //         // Fetch detailed salary slip
+    //         SalarySlip detailedSlip = salarySlipService.getById(user, slipId);
+    //         if (detailedSlip == null) {
+    //             logger.warn("Failed to fetch detailed salary slip for ID: {}", slipId);
+    //             continue;
+    //         }
+    //
+    //         EmployeeSalaryDetail detail = employeeDetailsMap.getOrDefault(employeeId, new EmployeeSalaryDetail());
+    //         detail.setEmployeeId(employeeId);
+    //         detail.setEmployeeName(employeeName);
+    //         detail.setYear(year);
+    //         detail.setMonth(month);
+    //
+    //         // Initialize totals if null
+    //         if (detail.getTotalGrossPay() == null) detail.setTotalGrossPay(0.0);
+    //         if (detail.getTotalNetPay() == null) detail.setTotalNetPay(0.0);
+    //         if (detail.getTotalDeductions() == null) detail.setTotalDeductions(0.0);
+    //
+    //         // Add values
+    //         Double grossPay = getDoubleValue(detailedSlip.getGrossPay());
+    //         Double netPay = getDoubleValue(detailedSlip.getNetPay());
+    //
+    //         detail.setTotalGrossPay(detail.getTotalGrossPay() + grossPay);
+    //         detail.setTotalNetPay(detail.getTotalNetPay() + netPay);
+    //
+    //         // Process earnings and deductions
+    //         processEmployeeComponents(detailedSlip, "earnings", detail, true);
+    //         processEmployeeComponents(detailedSlip, "deductions", detail, false);
+    //
+    //         // Add salary slip reference
+    //         if (detail.getSalarySlips() == null) {
+    //             detail.setSalarySlips(new ArrayList<>());
+    //         }
+    //         detail.getSalarySlips().add(detailedSlip);
+    //
+    //         employeeDetailsMap.put(employeeId, detail);
+    //     }
+    //
+    //     // Convert to list and sort by employee name
+    //     List<EmployeeSalaryDetail> result = new ArrayList<>(employeeDetailsMap.values());
+    //     result.sort((a, b) -> {
+    //         if (a.getEmployeeName() == null) return 1;
+    //         if (b.getEmployeeName() == null) return -1;
+    //         return a.getEmployeeName().compareTo(b.getEmployeeName());
+    //     });
+    //
+    //     logger.info("Retrieved {} employee salary details for {}-{}", result.size(), year, month);
+    //     return result;
+    // }
+
     public List<EmployeeSalaryDetail> getEmployeeSalaryDetails(User user, String year, String month) throws Exception {
         logger.info("Fetching employee salary details for {}-{}", year, month);
 
         String[] fields = {"name", "employee", "employee_name", "posting_date", "gross_pay", "net_pay"};
         List<String[]> filters = new ArrayList<>();
 
-        // Filter by year-month
+        // Filter by year-month with proper date range
         if (year != null && month != null) {
-            String startDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "-01";
-            String endDate = year + "-" + String.format("%02d", Integer.parseInt(month)) + "-31";
-            filters.add(new String[]{"posting_date", ">=", startDate});
-            filters.add(new String[]{"posting_date", "<=", endDate});
+            try {
+                int yearInt = Integer.parseInt(year);
+                int monthInt = Integer.parseInt(month);
+
+                // Use YearMonth to calculate valid start and end dates
+                YearMonth yearMonth = YearMonth.of(yearInt, monthInt);
+                String startDate = yearMonth.atDay(1).toString(); // First day of the month
+                String endDate = yearMonth.atEndOfMonth().toString(); // Last day of the month
+
+                filters.add(new String[]{"posting_date", ">=", startDate});
+                filters.add(new String[]{"posting_date", "<=", endDate});
+            } catch (NumberFormatException e) {
+                logger.error("Invalid year or month format: year={}, month={}", year, month, e);
+                throw new Exception("Invalid year or month format", e);
+            } catch (Exception e) {
+                logger.error("Error calculating date range for year={}, month={}", year, month, e);
+                throw new Exception("Error calculating date range", e);
+            }
         }
 
         // Only include submitted salary slips
