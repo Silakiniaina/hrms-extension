@@ -14,9 +14,6 @@ import mg.hrms.payload.ImportResult;
 import  mg.hrms.utils.OperationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
  
@@ -25,16 +22,12 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 
 @Service
 public class ImportService {
 
     private static final Logger logger = LoggerFactory.getLogger(ImportService.class);
-    private final RestApiService restApiService;
     private final FrappeService frappeService;
     private final ObjectMapper objectMapper;
     private boolean forceUpdate = false;
@@ -43,32 +36,16 @@ public class ImportService {
     private Map<String, List<String>> createdDocs = new HashMap<>();
     private Map<String, List<String>> errorMap = new HashMap<>();
 
-    public ImportService(RestApiService restApiService, ObjectMapper objectMapper, FrappeService frappeService) {
-        this.restApiService = restApiService;
+    public ImportService(ObjectMapper objectMapper, FrappeService frappeService) {
         this.objectMapper = objectMapper;
         this.frappeService = frappeService;
         initializeCounters();
     }
 
-    private void initializeCounters() {
-        logCounts.put("employees_processed", 0);
-        logCounts.put("salary_structures_processed", 0);
-        logCounts.put("salary_records_processed", 0);
-        logCounts.put("employees_created", 0);
-        logCounts.put("salary_structures_created", 0);
-        logCounts.put("salary_records_created", 0);
-
-        createdDocs.put("employees", new ArrayList<>());
-        createdDocs.put("salary_structures", new ArrayList<>());
-        createdDocs.put("salary_records", new ArrayList<>());
-
-        errorMap.put("employees", new ArrayList<>());
-        errorMap.put("salary_structures", new ArrayList<>());
-        errorMap.put("salary_records", new ArrayList<>());
-    }
-
-    public ImportResult processImport(MultipartFile employeesFile, MultipartFile structuresFile,
-            MultipartFile recordsFile, User user) {
+    /* -------------------------------------------------------------------------- */
+    /*                           Main method for import                           */
+    /* -------------------------------------------------------------------------- */
+    public ImportResult processImport(MultipartFile employeesFile, MultipartFile structuresFile, MultipartFile recordsFile, User user) {
         logger.info("Starting HRMS data import for user: {}", user.getFullName());
 
         // Reset state for new import
@@ -130,6 +107,9 @@ public class ImportService {
         }
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                             Processing methods                             */
+    /* -------------------------------------------------------------------------- */
     private void processAllData(List<EmployeeImport> employees, List<SalaryStructureImport> salaryStructures,
             List<SalaryRecordImport> salaryRecords, ImportResult result, User user) {
 
@@ -204,10 +184,6 @@ public class ImportService {
         }
     }
 
-    /**
-     * Process salary structures - equivalent to Python process_salary_structures
-     * method
-     */
     private void processSalaryStructuresCoordinated(List<SalaryStructureImport> salaryStructures, User user) {
         logger.info("=== PROCESSING SALARY STRUCTURES ===");
 
@@ -254,9 +230,6 @@ public class ImportService {
         }
     }
 
-    /**
-     * Process salary records - equivalent to Python process_salary_records method
-     */
     private void processSalaryRecordsCoordinated(List<SalaryRecordImport> salaryRecords, User user) {
         logger.info("=== PROCESSING SALARY RECORDS ===");
 
@@ -302,8 +275,9 @@ public class ImportService {
         }
     }
 
-    // Validation methods (equivalent to check_integrity in Python classes)
-
+    /* -------------------------------------------------------------------------- */
+    /*                             Validation methods                             */
+    /* -------------------------------------------------------------------------- */
     private boolean validateEmployeeIntegrity(EmployeeImport emp, int lineNumber) {
         List<String> errors = new ArrayList<>();
 
@@ -424,8 +398,9 @@ public class ImportService {
         return true;
     }
 
-    // Data insertion methods (equivalent to insert_data in Python classes)
-
+    /* -------------------------------------------------------------------------- */
+    /*                           Data insertion methods                           */
+    /* -------------------------------------------------------------------------- */
     private String insertEmployeeData(EmployeeImport emp, int lineNumber, User user) {
         try {
             logStep("Creating employee: " + emp.getEmployeeRef());
@@ -582,8 +557,10 @@ public class ImportService {
         }
     }
 
-    // Helper methods for salary structure processing
-
+    
+    /* -------------------------------------------------------------------------- */
+    /*                    Helper methods for Salary Strucuture                    */
+    /* -------------------------------------------------------------------------- */
     private String getOrCreateSalaryStructure(SalaryStructureImport struct, String company, User user) {
         try {
             // Check if structure exists
@@ -735,17 +712,10 @@ public class ImportService {
         }
     }
 
-    // Utility methods
 
-    private Date parseMonthDate(String monthStr) {
-        try {
-            LocalDate parsedDate = LocalDate.parse(monthStr, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-            return Date.valueOf(parsedDate);
-        } catch (Exception e) {
-            throw new RuntimeException("Invalid Month format. Expected dd/MM/yyyy");
-        }
-    }
-
+    /* -------------------------------------------------------------------------- */
+    /*                             Additional methods                             */
+    /* -------------------------------------------------------------------------- */
     private String getCurrencyForCompany(String company, User user) {
         try {
             Map<String, Object> companyDoc = frappeService.getFrappeDocument("Company", company, user);
@@ -860,8 +830,9 @@ public class ImportService {
         }
     }
 
-    // Master data creation methods
-
+    /* -------------------------------------------------------------------------- */
+    /*                        Master data creation methods                        */
+    /* -------------------------------------------------------------------------- */
     private String getOrCreateCompany(String companyName, User user) {
         try {
             Map<String, Object> existing = frappeService.getFrappeDocument("Company", companyName, user);
@@ -869,7 +840,6 @@ public class ImportService {
                 return companyName;
             }
 
-            // Create company
             Map<String, Object> companyData = new HashMap<>();
             companyData.put("company_name", companyName);
             companyData.put("abbr", companyName.substring(0, Math.min(5, companyName.length())).toUpperCase());
@@ -952,8 +922,9 @@ public class ImportService {
         }
     }    
 
-    // File parsing methods
-
+    /* -------------------------------------------------------------------------- */
+    /*                            File parsing Methods                            */
+    /* -------------------------------------------------------------------------- */
     private <T> List<T> parseFile(MultipartFile file, TypeReference<List<T>> typeRef) {
         if (file == null || file.isEmpty()) {
             return null;
@@ -1018,6 +989,7 @@ public class ImportService {
             return beans.isEmpty() && !errorMap.get(category).isEmpty() ? null : beans;
         }
     }
+
     private <T> List<T> parseJsonFile(MultipartFile file, TypeReference<List<T>> typeRef) throws IOException {
         List<T> data = objectMapper.readValue(file.getInputStream(), typeRef);
         logStep("Parsed " + data.size() + " records from JSON file");
@@ -1035,8 +1007,10 @@ public class ImportService {
         throw new IllegalArgumentException("Unknown type reference: " + typeRef.getType());
     }
 
-    // Utility methods
 
+    /* -------------------------------------------------------------------------- */
+    /*                               Utility Methods                              */
+    /* -------------------------------------------------------------------------- */
     private String mapGender(String gender) {
         if (gender == null)
             return "Other";
@@ -1107,6 +1081,23 @@ public class ImportService {
 
     public Map<String, String> getEmployeeRefMap() {
         return new HashMap<>(employeeRefMap);
+    }
+
+    private void initializeCounters() {
+        logCounts.put("employees_processed", 0);
+        logCounts.put("salary_structures_processed", 0);
+        logCounts.put("salary_records_processed", 0);
+        logCounts.put("employees_created", 0);
+        logCounts.put("salary_structures_created", 0);
+        logCounts.put("salary_records_created", 0);
+
+        createdDocs.put("employees", new ArrayList<>());
+        createdDocs.put("salary_structures", new ArrayList<>());
+        createdDocs.put("salary_records", new ArrayList<>());
+
+        errorMap.put("employees", new ArrayList<>());
+        errorMap.put("salary_structures", new ArrayList<>());
+        errorMap.put("salary_records", new ArrayList<>());
     }
 
     public static void main(String[] args) throws DateFormatException {
