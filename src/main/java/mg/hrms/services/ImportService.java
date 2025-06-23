@@ -444,8 +444,8 @@ public class ImportService {
             employeeData.put("last_name", emp.getLastName());
             employeeData.put("employee_name", emp.getFirstName() + " " + emp.getLastName());
             employeeData.put("gender", mapGender(emp.getGender()));
-            employeeData.put("date_of_birth", formatIntoFrappeDate(emp.getBirthDate()));
-            employeeData.put("date_of_joining", formatIntoFrappeDate(emp.getHireDate()));
+            employeeData.put("date_of_birth", OperationUtils.formatIntoFrappeDate(emp.getBirthDate()));
+            employeeData.put("date_of_joining", OperationUtils.formatIntoFrappeDate(emp.getHireDate()));
             employeeData.put("company",
                     getOrCreateCompany(emp.getCompany() != null ? emp.getCompany() : "Default Company", user));
             employeeData.put("status", "Active");
@@ -564,10 +564,10 @@ public class ImportService {
             // Create salary slip
             Map<String, Object> slipData = new HashMap<>();
             slipData.put("employee", employeeName);
-            slipData.put("start_date", formatIntoFrappeDate(startDate));
-            slipData.put("end_date", formatIntoFrappeDate(String.valueOf(endDate)));
+            slipData.put("start_date", OperationUtils.formatIntoFrappeDate(startDate));
+            slipData.put("end_date", OperationUtils.formatIntoFrappeDate(String.valueOf(endDate)));
             slipData.put("salary_structure", salaryStructure);
-            slipData.put("posting_date", formatIntoFrappeDate(String.valueOf(endDate)));
+            slipData.put("posting_date", OperationUtils.formatIntoFrappeDate(String.valueOf(endDate)));
             slipData.put("payroll_frequency", "Monthly");
             slipData.put("base_salary", record.getBaseSalary());
             slipData.put("company", company);
@@ -797,8 +797,8 @@ public class ImportService {
             Map<String, Object> filters = new HashMap<>();
             filters.put("employee", employee);
             filters.put("salary_structure", salaryStructure);
-            filters.put("from_date", formatIntoFrappeDate(fromDate));
-            // filters.put("to_date", formatIntoFrappeDate(toDate.toString()));
+            filters.put("from_date", OperationUtils.formatIntoFrappeDate(fromDate));
+            // filters.put("to_date", OperationUtils.formatIntoFrappeDate(toDate.toString()));
 
             List<Map<String, Object>> assignments = frappeService.searchFrappeDocuments("Salary Structure Assignment", filters, user);
             if (assignments != null && !assignments.isEmpty()) {
@@ -810,8 +810,8 @@ public class ImportService {
             Map<String, Object> assignmentData = new HashMap<>();
             assignmentData.put("employee", employee);
             assignmentData.put("salary_structure", salaryStructure);
-            assignmentData.put("from_date", formatIntoFrappeDate(fromDate));
-            // assignmentData.put("to_date", formatIntoFrappeDate(toDate.toString()));
+            assignmentData.put("from_date", OperationUtils.formatIntoFrappeDate(fromDate));
+            // assignmentData.put("to_date", OperationUtils.formatIntoFrappeDate(toDate.toString()));
             assignmentData.put("base", baseSalary);
             assignmentData.put("company", company);
 
@@ -1052,19 +1052,6 @@ public class ImportService {
                 return "Female";
             default:
                 return "Other";
-        }
-    }
-
-
-    public static String formatIntoFrappeDate(String date) {
-        try {
-            DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            DateTimeFormatter frappeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-            LocalDate localDate = LocalDate.parse(date, inputFormat);
-            return localDate.format(frappeFormat);
-        } catch (DateTimeParseException e) {
-            System.err.println("Invalid date format: " + date);
-            return null;
         }
     }
 
