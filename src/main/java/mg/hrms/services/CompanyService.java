@@ -24,6 +24,10 @@ public class CompanyService {
         this.objectMapper = objectMapper;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                         Method to get All companies                        */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("null")
     public List<Company> getAll(User user) throws Exception {
         logger.info("Fetching all companies for user: {}", user.getFullName());
         String[] fields = {"name"};

@@ -30,6 +30,10 @@ public class EmployeeService {
         this.salaryStructureAssignmentService = salaryStructureAssignmentService;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                       Method to getEmployeeBy his Id                       */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("null")
     public Employee getById(User user, String employeeId) throws Exception {
         logger.info("Fetching employee by ID: {}", employeeId);
         String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};

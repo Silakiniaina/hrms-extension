@@ -33,6 +33,10 @@ public class AuthService {
         this.objectMapper = objectMapper;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                              Method for login                              */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings({ "deprecation", "null" })
     public User login(String username, String password) throws Exception {
         logger.info("Attempting login for user: {}", username);
         try {
