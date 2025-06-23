@@ -1,21 +1,35 @@
 package mg.hrms.models.dataImport;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.opencsv.bean.CsvBindByName;
+import com.opencsv.bean.CsvDate;
 import lombok.Data;
 
 import java.sql.Date;
 
 @Data
 public class EmployeeImport {
+    @CsvBindByName(column = "Ref")
     private String employeeRef;
+    
+    @CsvBindByName(column = "Nom")
     private String lastName;
+
+    @CsvBindByName(column = "Prenom")
     private String firstName;
+
+    @CsvBindByName(column = "genre")
     private String gender;
+
+    @CsvBindByName(column = "company")
     private String company;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
-    private Date hireDate;
+    @CsvBindByName(column = "Date embauche")
+    private String hireDate;
 
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd/MM/yyyy")
-    private Date birthDate;
+    @CsvBindByName(column = "date naissance")
+    private String birthDate;
+
+    private Date birthDateValue;
+    private Date hireDateValue;
 }
