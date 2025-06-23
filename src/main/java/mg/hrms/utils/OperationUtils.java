@@ -33,4 +33,19 @@ public class OperationUtils {
             throw new DateFormatException("Format date not valid, format should be : dd/MM/yyyy");
         }
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                            Format to frappe date                           */
+    /* -------------------------------------------------------------------------- */
+    public static String formatIntoFrappeDate(String date) {
+        try {
+            DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            DateTimeFormatter frappeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate localDate = LocalDate.parse(date, inputFormat);
+            return localDate.format(frappeFormat);
+        } catch (DateTimeParseException e) {
+            System.err.println("Invalid date format: " + date);
+            return null;
+        }
+    }
 }
