@@ -5,6 +5,8 @@ import mg.hrms.models.User;
 import java.util.Map;
 import mg.hrms.payload.ImportResult;
 import mg.hrms.services.ImportService;
+import mg.hrms.services.ResetService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
@@ -22,9 +24,11 @@ public class ImportController {
 
     private static final Logger logger = LoggerFactory.getLogger(ImportController.class);
     private final ImportService importService;
+    private final ResetService resetService;
 
-    public ImportController(ImportService importService) {
+    public ImportController(ImportService importService, ResetService resetService) {
         this.importService = importService;
+        this.resetService = resetService;
     }
 
     @GetMapping
@@ -76,6 +80,7 @@ public class ImportController {
                     redirectAttributes.addFlashAttribute("warnings", result.getWarnings());
                 }
                 logger.warn("Data import failed: {}", errorMessage);
+                resetService.processReset(null, user);
             }
             redirectAttributes.addFlashAttribute("importResult", result);
 
