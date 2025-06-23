@@ -11,6 +11,7 @@ import mg.hrms.models.dataImport.EmployeeImport;
 import mg.hrms.models.dataImport.SalaryStructureImport;
 import mg.hrms.models.dataImport.SalaryRecordImport;
 import mg.hrms.payload.ImportResult;
+import  mg.hrms.utils.OperationUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
@@ -325,7 +326,7 @@ public class ImportService {
 
         if(emp.getBirthDate() != null){
             try {
-                String formatedBd = formatDate(emp.getBirthDate());
+                String formatedBd = OperationUtils.formatDate(emp.getBirthDate());
                 emp.setBirthDate(formatedBd);
             } catch (DateFormatException e) {
                 errors.add("BirthDate "+emp.getBirthDate()+" : "+e.getMessage());
@@ -334,7 +335,7 @@ public class ImportService {
 
         if(emp.getHireDate() != null){
             try {
-                String formatedHd = formatDate(emp.getHireDate());
+                String formatedHd = OperationUtils.formatDate(emp.getHireDate());
                 emp.setHireDate(formatedHd);
             } catch (DateFormatException e) {
                 errors.add("HireDate "+emp.getHireDate()+" : "+e.getMessage());
@@ -396,7 +397,7 @@ public class ImportService {
             errors.add("Month is required");
         } else {
             try {
-                String formatedMonth = formatDate(record.getMonth());
+                String formatedMonth = OperationUtils.formatDate(record.getMonth());
                 record.setMonth(formatedMonth);
             } catch (DateFormatException e) {
                 errors.add("BirthDate "+record.getMonth()+" : "+e.getMessage());
@@ -535,12 +536,12 @@ public class ImportService {
             logStep("Setting time for monthdate " + monthDate);
             cal.setTime(monthDate);
             logStep("Format start date");
-            String startDate = formatDate(record.getMonth()); 
+            String startDate = OperationUtils.formatDate(record.getMonth()); 
             logStep("Find the last day of month");
             cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
             logStep("Format enddate");
             java.util.Date lastDayOfMonthUtilDate = cal.getTime();
-            String endDate = formatDate(new SimpleDateFormat("dd/MM/yyyy").format(lastDayOfMonthUtilDate));
+            String endDate = OperationUtils.formatDate(new SimpleDateFormat("dd/MM/yyyy").format(lastDayOfMonthUtilDate));
 
 
             // Ensure fiscal year
@@ -1054,19 +1055,6 @@ public class ImportService {
         }
     }
 
-    
-    public static String formatDate(String date) throws DateFormatException {
-        if (date == null)
-            return null;
-
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.FRANCE);
-            LocalDate localDate = LocalDate.parse(date, formatter);
-            return localDate.format(formatter); 
-        } catch (DateTimeParseException e) {
-            throw new DateFormatException("Format date not valid, format should be : dd/MM/yyyy");
-        }
-    }
 
     public static String formatIntoFrappeDate(String date) {
         try {
@@ -1135,6 +1123,6 @@ public class ImportService {
     }
 
     public static void main(String[] args) throws DateFormatException {
-        System.out.println(formatDate("03/04/2024"));  // should print: 03/04/2024
+        System.out.println(OperationUtils.formatDate("03/04/2024"));  // should print: 03/04/2024
     }
 }
