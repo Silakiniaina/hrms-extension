@@ -18,7 +18,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+ 
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +34,7 @@ public class ImportService {
 
     private static final Logger logger = LoggerFactory.getLogger(ImportService.class);
     private final RestApiService restApiService;
+    private final FrappeService frappeService;
     private final ObjectMapper objectMapper;
     private boolean forceUpdate = false;
     private Map<String, String> employeeRefMap = new HashMap<>();
@@ -41,9 +42,10 @@ public class ImportService {
     private Map<String, List<String>> createdDocs = new HashMap<>();
     private Map<String, List<String>> errorMap = new HashMap<>();
 
-    public ImportService(RestApiService restApiService, ObjectMapper objectMapper) {
+    public ImportService(RestApiService restApiService, ObjectMapper objectMapper, FrappeService frappeService) {
         this.restApiService = restApiService;
         this.objectMapper = objectMapper;
+        this.frappeService = frappeService;
         initializeCounters();
     }
 
@@ -674,7 +676,7 @@ public class ImportService {
     private String updateStructureComponent(String structureDocName, SalaryStructureImport struct, User user) {
         try {
             // Get the existing structure document
-            Map<String, Object> structureDoc = getFrappeDocument("Salary Structure", structureDocName, user);
+            Map<String, Object> structureDoc = frappeService.getFrappeDocument("Salary Structure", structureDocName, user);
             if (structureDoc == null) {
                 throw new RuntimeException("Structure document not found: " + structureDocName);
             }
@@ -745,7 +747,7 @@ public class ImportService {
 
     private String getCurrencyForCompany(String company, User user) {
         try {
-            Map<String, Object> companyDoc = getFrappeDocument("Company", company, user);
+            Map<String, Object> companyDoc = frappeService.getFrappeDocument("Company", company, user);
             return companyDoc != null ? (String) companyDoc.get("default_currency") : "USD";
         } catch (Exception e) {
             return "USD";
@@ -753,12 +755,12 @@ public class ImportService {
     }
 
     private String checkExistingSalaryComponent(String name, User user) {
-        Map<String, Object> response = getFrappeDocument("Salary Component", name, user);
+        Map<String, Object> response = frappeService.getFrappeDocument("Salary Component", name, user);
         return response != null ? name : null;
     }
 
     private String checkExistingSalaryStructure(String name, User user) {
-        Map<String, Object> response = getFrappeDocument("Salary Structure", name, user);
+        Map<String, Object> response = frappeService.getFrappeDocument("Salary Structure", name, user);
         return response != null ? name : null;
     }
 
@@ -780,7 +782,7 @@ public class ImportService {
 
     private String getCompanyForEmployee(String employeeName, User user) {
         try {
-            Map<String, Object> emp = getFrappeDocument("Employee", employeeName, user);
+            Map<String, Object> emp = frappeService.getFrappeDocument("Employee", employeeName, user);
             return emp != null ? (String) emp.get("company") : "Default Company";
         } catch (Exception e) {
             return "Default Company";
@@ -835,7 +837,7 @@ public class ImportService {
             String fiscalYearName = String.valueOf(year);
 
             // Check if fiscal year exists
-            Map<String, Object> existing = getFrappeDocument("Fiscal Year", fiscalYearName, user);
+            Map<String, Object> existing = frappeService.getFrappeDocument("Fiscal Year", fiscalYearName, user);
             if (existing != null) {
                 return fiscalYearName;
             }
@@ -861,7 +863,7 @@ public class ImportService {
 
     private String getOrCreateCompany(String companyName, User user) {
         try {
-            Map<String, Object> existing = getFrappeDocument("Company", companyName, user);
+            Map<String, Object> existing = frappeService.getFrappeDocument("Company", companyName, user);
             if (existing != null) {
                 return companyName;
             }
@@ -886,7 +888,7 @@ public class ImportService {
 
     private String getOrCreateDepartment(String deptName, String company, User user) {
         try {
-            Map<String, Object> existing = getFrappeDocument("Department", deptName, user);
+            Map<String, Object> existing = frappeService.getFrappeDocument("Department", deptName, user);
             if (existing != null) {
                 return deptName;
             }
@@ -908,7 +910,7 @@ public class ImportService {
 
     private String getOrCreateDesignation(String designation, User user) {
         try {
-            Map<String, Object> existing = getFrappeDocument("Designation", designation, user);
+            Map<String, Object> existing = frappeService.getFrappeDocument("Designation", designation, user);
             if (existing != null) {
                 return designation;
             }
@@ -929,7 +931,7 @@ public class ImportService {
 
     private String getOrCreateBranch(String branchName, String company, User user) {
         try {
-            Map<String, Object> existing = getFrappeDocument("Branch", branchName, user);
+            Map<String, Object> existing = frappeService.getFrappeDocument("Branch", branchName, user);
             if (existing != null) {
                 return branchName;
             }
@@ -950,29 +952,6 @@ public class ImportService {
     }
 
     // Frappe API interaction methods
-
-    private Map<String, Object> getFrappeDocument(String doctype, String name, User user) {
-        try {
-            String url = restApiService.buildResourceUrl(doctype, name, null);
-            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    url,
-                    HttpMethod.GET,
-                    null,
-                    user,
-                    new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-
-                Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
-                return data;
-            }
-            return null;
-        } catch (Exception e) {
-            logStep("Failed to get document " + doctype + "/" + name + ": " + e.getMessage());
-            return null;
-        }
-    }
 
     private List<Map<String, Object>> searchFrappeDocuments(String doctype, Map<String, Object> filters, User user) {
         try {
