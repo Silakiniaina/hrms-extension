@@ -770,7 +770,7 @@ public class ImportService {
             Map<String, Object> filters = new HashMap<>();
             filters.put("ref", ref);
 
-            List<Map<String, Object>> employees = searchFrappeDocuments("Employee", filters, user);
+            List<Map<String, Object>> employees = frappeService.searchFrappeDocuments("Employee", filters, user);
             if (employees != null && !employees.isEmpty()) {
                 return (String) employees.get(0).get("name");
             }
@@ -799,7 +799,7 @@ public class ImportService {
             filters.put("from_date", formatIntoFrappeDate(fromDate));
             // filters.put("to_date", formatIntoFrappeDate(toDate.toString()));
 
-            List<Map<String, Object>> assignments = searchFrappeDocuments("Salary Structure Assignment", filters, user);
+            List<Map<String, Object>> assignments = frappeService.searchFrappeDocuments("Salary Structure Assignment", filters, user);
             if (assignments != null && !assignments.isEmpty()) {
                 logStep("Salary structure assignment already exists");
                 return true;
@@ -953,34 +953,7 @@ public class ImportService {
 
     // Frappe API interaction methods
 
-    private List<Map<String, Object>> searchFrappeDocuments(String doctype, Map<String, Object> filters, User user) {
-        try {
-            // Convertir les filtres Map en List<String[]> pour buildUrl
-            List<String[]> filtersList = new ArrayList<>();
-            for (Map.Entry<String, Object> entry : filters.entrySet()) {
-                filtersList.add(new String[] { entry.getKey(), "=", entry.getValue().toString() });
-            }
-
-            String url = restApiService.buildUrl(doctype, null, filtersList);
-            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    url,
-                    HttpMethod.GET,
-                    null,
-                    user,
-                    new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-
-                List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
-                return data;
-            }
-            return new ArrayList<>();
-        } catch (Exception e) {
-            logStep("Failed to search documents " + doctype + ": " + e.getMessage());
-            return new ArrayList<>();
-        }
-    }
+    
 
     private String createFrappeDocument(String doctype, Map<String, Object> data, User user, boolean submit) {
         try {
