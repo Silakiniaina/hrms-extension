@@ -456,7 +456,7 @@ public class ImportService {
 
             String employeeName;
             if (existingEmployee != null && forceUpdate) {
-                employeeName = updateFrappeDocument("Employee", existingEmployee, employeeData, user);
+                employeeName = frappeService.updateFrappeDocument("Employee", existingEmployee, employeeData, user);
                 logStep("Updated employee: " + employeeName);
             } else {
                 employeeName = frappeService.createFrappeDocument("Employee", employeeData, user, true);
@@ -659,7 +659,7 @@ public class ImportService {
                     updateData.put("formula", struct.getValeur().trim());
                 }
 
-                String updated = updateFrappeDocument("Salary Component", existingComponent, updateData, user);
+                String updated = frappeService.updateFrappeDocument("Salary Component", existingComponent, updateData, user);
                 if (updated != null) {
                     frappeService.submitFrappeDocument("Salary Component", updated, user);
                     logStep("Component updated and resubmitted: " + updated);
@@ -725,7 +725,7 @@ public class ImportService {
             Map<String, Object> updateData = new HashMap<>();
             updateData.put(field, components);
 
-            String updated = updateFrappeDocument("Salary Structure", structureDocName, updateData, user);
+            String updated = frappeService.updateFrappeDocument("Salary Structure", structureDocName, updateData, user);
             logStep("Component '" + struct.getName() + "' processed for structure '" + structureDocName + "'");
             return updated;
 
@@ -949,38 +949,7 @@ public class ImportService {
             logStep("Failed to create branch: " + e.getMessage());
             return "Main Branch";
         }
-    }
-
-    // Frappe API interaction methods
-
-    
-
-
-
-    private String updateFrappeDocument(String doctype, String name, Map<String, Object> data, User user) {
-        try {
-            String url = restApiService.buildResourceUrl(doctype, name, null);
-            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    url,
-                    HttpMethod.PUT,
-                    data,
-                    user,
-                    new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-
-                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
-                return (String) responseData.get("name");
-            }
-            return null;
-        } catch (Exception e) {
-            logStep("Failed to update document " + doctype + "/" + name + ": " + e.getMessage());
-            return null;
-        }
-    }
-
-    
+    }    
 
     // File parsing methods
 
