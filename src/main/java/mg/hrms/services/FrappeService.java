@@ -141,6 +141,29 @@ public class FrappeService {
     }
 
     /* -------------------------------------------------------------------------- */
+    /*                              Cancel a document                             */
+    /* -------------------------------------------------------------------------- */
+    public boolean cancelFrappeDocument(String doctype, String name, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("docstatus", 2);
+
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.PUT,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            OperationUtils.logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage(), logger);
+            return false;
+        }
+    }
+
+    /* -------------------------------------------------------------------------- */
     /*                              Update a document                             */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "unchecked", "null" })
