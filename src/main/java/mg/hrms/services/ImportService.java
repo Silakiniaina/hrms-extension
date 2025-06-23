@@ -1,14 +1,16 @@
 package mg.hrms.services;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.opencsv.bean.CsvToBean;
+import com.opencsv.bean.CsvToBeanBuilder;
+
+import mg.hrms.exception.DateFormatException;
 import mg.hrms.models.User;
 import mg.hrms.models.dataImport.EmployeeImport;
-import mg.hrms.models.dataImport.ImportData;
-import mg.hrms.models.dataImport.SalaryRecordImport;
 import mg.hrms.models.dataImport.SalaryStructureImport;
+import mg.hrms.models.dataImport.SalaryRecordImport;
 import mg.hrms.payload.ImportResult;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
@@ -17,231 +19,1246 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.sql.Date;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.*;
 
 @Service
 public class ImportService {
 
     private static final Logger logger = LoggerFactory.getLogger(ImportService.class);
-    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private final RestApiService restApiService;
     private final ObjectMapper objectMapper;
+    private boolean forceUpdate = false;
+    private Map<String, String> employeeRefMap = new HashMap<>();
+    private Map<String, Integer> logCounts = new HashMap<>();
+    private Map<String, List<String>> createdDocs = new HashMap<>();
+    private Map<String, List<String>> errorMap = new HashMap<>();
 
     public ImportService(RestApiService restApiService, ObjectMapper objectMapper) {
         this.restApiService = restApiService;
         this.objectMapper = objectMapper;
+        initializeCounters();
     }
 
-    public ImportResult processImport(MultipartFile employeesFile, MultipartFile structuresFile, MultipartFile recordsFile, User user) throws Exception {
-        logger.info("Processing import for user: {}", user.getFullName());
+    private void initializeCounters() {
+        logCounts.put("employees_processed", 0);
+        logCounts.put("salary_structures_processed", 0);
+        logCounts.put("salary_records_processed", 0);
+        logCounts.put("employees_created", 0);
+        logCounts.put("salary_structures_created", 0);
+        logCounts.put("salary_records_created", 0);
+
+        createdDocs.put("employees", new ArrayList<>());
+        createdDocs.put("salary_structures", new ArrayList<>());
+        createdDocs.put("salary_records", new ArrayList<>());
+
+        errorMap.put("employees", new ArrayList<>());
+        errorMap.put("salary_structures", new ArrayList<>());
+        errorMap.put("salary_records", new ArrayList<>());
+    }
+
+    public ImportResult processImport(MultipartFile employeesFile, MultipartFile structuresFile,
+            MultipartFile recordsFile, User user) {
+        logger.info("Starting HRMS data import for user: {}", user.getFullName());
+
+        // Reset state for new import
+        initializeCounters();
+        employeeRefMap.clear();
+
+        ImportResult result = new ImportResult();
+
         try {
-            ImportData importData = parseImportFiles(employeesFile, structuresFile, recordsFile);
-            validateImportData(importData);
+            // Parse input files
+            List<EmployeeImport> employees = parseFile(employeesFile, new TypeReference<List<EmployeeImport>>() {
+            });
+            List<SalaryStructureImport> salaryStructures = parseFile(structuresFile,
+                    new TypeReference<List<SalaryStructureImport>>() {
+                    });
+            List<SalaryRecordImport> salaryRecords = parseFile(recordsFile,
+                    new TypeReference<List<SalaryRecordImport>>() {
+                    });
 
-            Map<String, Object> erpNextPayload = new HashMap<>();
-            if (importData.getEmployees() != null) erpNextPayload.put("employees_file", convertEmployees(importData.getEmployees()));
-            if (importData.getSalaryStructures() != null) erpNextPayload.put("salary_structures_file", convertStructures(importData.getSalaryStructures()));
-            if (importData.getSalaryRecords() != null) erpNextPayload.put("salary_records_file", convertRecords(importData.getSalaryRecords()));
+            if (employees == null && salaryStructures == null && salaryRecords == null) {
+                result.setSuccess(false);
+                result.setMessage("No valid import data provided");
+                result.addError("system", "No valid files uploaded");
+                return result;
+            }
 
-            logger.debug("ERPNext payload: {}", objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(erpNextPayload));
+            // Process in coordinated flow (like Python process_all)
+            processAllData(employees, salaryStructures, salaryRecords, result, user);
 
-            String importUrl = restApiService.getServerHost() + "/api/method/hrms.api.data_import.import_hrms_data";
-            String requestBody = objectMapper.writeValueAsString(erpNextPayload);
+            // Set final result status
+            int totalCreated = getTotalCreatedRecords();
+            if (!hasErrors() && totalCreated > 0) {
+                result.setSuccess(true);
+                result.setMessage("Successfully imported " + totalCreated + " records");
+            } else if (hasErrors()) {
+                result.setSuccess(false);
+                result.setMessage("Import completed with errors");
+                // Copy errors to result
+                copyErrorsToResult(result);
+            } else {
+                result.setSuccess(false);
+                result.setMessage("No records were created");
+            }
+
+            // Copy counts to result
+            result.setCounts(new HashMap<>(logCounts));
+
+            logger.info("Import completed: success={}, created={}, errors={}",
+                    result.isSuccess(), totalCreated, errorMap.values().stream().mapToInt(List::size).sum());
+
+            return result;
+
+        } catch (Exception e) {
+            logger.error("Import failed: {}", e.getMessage(), e);
+            result.setSuccess(false);
+            result.setMessage("Import failed: " + e.getMessage());
+            result.addError("system", e.getMessage());
+            return result;
+        }
+    }
+
+    private void processAllData(List<EmployeeImport> employees, List<SalaryStructureImport> salaryStructures,
+            List<SalaryRecordImport> salaryRecords, ImportResult result, User user) {
+
+        // 1. Process Employees first (they are dependencies for salary records)
+        if (employees != null && !employees.isEmpty()) {
+            logger.info("--- Processing Employees (via processAll) ---");
+            processEmployeesCoordinated(employees, user);
+            logger.info("Processed {} employees, created {}",
+                    logCounts.get("employees_processed"), logCounts.get("employees_created"));
+            logger.info("Employee Ref Map: {}", employeeRefMap);
+        }
+
+        // 2. Process Salary Structures
+        if (salaryStructures != null && !salaryStructures.isEmpty()) {
+            logger.info("--- Processing Salary Structures (via processAll) ---");
+            processSalaryStructuresCoordinated(salaryStructures, user);
+            logger.info("Processed {} structures, created {}",
+                    logCounts.get("salary_structures_processed"), logCounts.get("salary_structures_created"));
+        }
+
+        // 3. Process Salary Records (using the employee_ref_map built in step 1)
+        if (salaryRecords != null && !salaryRecords.isEmpty()) {
+            logger.info("--- Processing Salary Records (via processAll) ---");
+            processSalaryRecordsCoordinated(salaryRecords, user);
+            logger.info("Processed {} records, created {}",
+                    logCounts.get("salary_records_processed"), logCounts.get("salary_records_created"));
+        }
+    }
+
+    private void processEmployeesCoordinated(List<EmployeeImport> employees, User user) {
+        logger.info("=== PROCESSING EMPLOYEES ===");
+
+        try {
+            for (int idx = 0; idx < employees.size(); idx++) {
+                EmployeeImport emp = employees.get(idx);
+                int lineNumber = idx + 1;
+                logCounts.put("employees_processed", logCounts.get("employees_processed") + 1);
+
+                try {
+                    String employeeRef = emp.getEmployeeRef();
+                    logStep("Creating employee: " + employeeRef);
+
+                    // Validate employee data (equivalent to check_integrity)
+                    if (!validateEmployeeIntegrity(emp, lineNumber)) {
+                        logStep("Validation failed for employee: " + employeeRef);
+                        continue;
+                    }
+
+                    // Create employee
+                    String docName = insertEmployeeData(emp, lineNumber, user);
+                    if (docName != null) {
+                        createdDocs.get("employees").add(docName);
+                        logCounts.put("employees_created", logCounts.get("employees_created") + 1);
+                        employeeRefMap.put(employeeRef, docName); // THIS LINE IS CRUCIAL
+                        logStep("Created employee: " + docName);
+                    } else {
+                        logStep("Failed to create employee: " + employeeRef);
+                    }
+
+                } catch (Exception e) {
+                    String errorMsg = "Line " + lineNumber + ": " + e.getMessage();
+                    logStep("!!! " + errorMsg);
+                    errorMap.get("employees").add(errorMsg);
+                }
+            }
+
+            logger.info("Successfully created {} employees", logCounts.get("employees_created"));
+
+        } catch (Exception e) {
+            logStep("!!! Error processing employees: " + e.getMessage());
+            errorMap.get("employees").add(e.getMessage());
+        }
+    }
+
+    /**
+     * Process salary structures - equivalent to Python process_salary_structures
+     * method
+     */
+    private void processSalaryStructuresCoordinated(List<SalaryStructureImport> salaryStructures, User user) {
+        logger.info("=== PROCESSING SALARY STRUCTURES ===");
+
+        try {
+            for (int idx = 0; idx < salaryStructures.size(); idx++) {
+                SalaryStructureImport struct = salaryStructures.get(idx);
+                int lineNumber = idx + 1;
+                logCounts.put("salary_structures_processed", logCounts.get("salary_structures_processed") + 1);
+
+                try {
+                    String structureName = struct.getSalaryStructure();
+                    logStep("Processing salary structure line " + lineNumber + ": " + structureName);
+
+                    // Validate structure data (equivalent to check_integrity)
+                    if (!validateSalaryStructureIntegrity(struct, lineNumber)) {
+                        logStep("Validation failed for salary structure component: " + struct.getName());
+                        continue;
+                    }
+
+                    // Create/update salary structure
+                    String docName = insertSalaryStructureData(struct, lineNumber, user);
+                    if (docName != null) {
+                        if (!createdDocs.get("salary_structures").contains(docName)) {
+                            createdDocs.get("salary_structures").add(docName);
+                            logCounts.put("salary_structures_created", logCounts.get("salary_structures_created") + 1);
+                        }
+                        logStep("Processed salary structure component: " + struct.getName());
+                    } else {
+                        logStep("Failed to process salary structure component: " + struct.getName());
+                    }
+
+                } catch (Exception e) {
+                    String errorMsg = "Line " + lineNumber + ": " + e.getMessage();
+                    logStep("!!! " + errorMsg);
+                    errorMap.get("salary_structures").add(errorMsg);
+                }
+            }
+
+            logger.info("Successfully created {} salary structures", logCounts.get("salary_structures_created"));
+
+        } catch (Exception e) {
+            logStep("!!! Error processing salary structures: " + e.getMessage());
+            errorMap.get("salary_structures").add(e.getMessage());
+        }
+    }
+
+    /**
+     * Process salary records - equivalent to Python process_salary_records method
+     */
+    private void processSalaryRecordsCoordinated(List<SalaryRecordImport> salaryRecords, User user) {
+        logger.info("=== PROCESSING SALARY RECORDS ===");
+
+        try {
+            for (int idx = 0; idx < salaryRecords.size(); idx++) {
+                SalaryRecordImport record = salaryRecords.get(idx);
+                int lineNumber = idx + 1;
+                logCounts.put("salary_records_processed", logCounts.get("salary_records_processed") + 1);
+
+                try {
+                    String employeeRef = record.getEmployeeRef();
+                    String month = record.getMonth();
+                    logStep("Processing salary record line " + lineNumber + ": " + employeeRef + " - " + month);
+
+                    // Validate record data and use employee_ref_map (THIS IS CRUCIAL)
+                    if (!validateSalaryRecordIntegrity(record, lineNumber)) {
+                        logStep("Validation failed for salary record for employee: " + employeeRef);
+                        continue;
+                    }
+
+                    // Create salary record
+                    String docName = insertSalaryRecordData(record, lineNumber, user);
+                    if (docName != null) {
+                        createdDocs.get("salary_records").add(docName);
+                        logCounts.put("salary_records_created", logCounts.get("salary_records_created") + 1);
+                        logStep("Created salary record: " + docName);
+                    } else {
+                        logStep("Failed to create salary record for employee: " + employeeRef);
+                    }
+
+                } catch (Exception e) {
+                    String errorMsg = "Line " + lineNumber + ": " + e.getMessage();
+                    logStep("!!! " + errorMsg);
+                    errorMap.get("salary_records").add(errorMsg);
+                }
+            }
+
+            logger.info("Successfully created {} salary records", logCounts.get("salary_records_created"));
+
+        } catch (Exception e) {
+            logStep("!!! Error processing salary records: " + e.getMessage());
+            errorMap.get("salary_records").add(e.getMessage());
+        }
+    }
+
+    // Validation methods (equivalent to check_integrity in Python classes)
+
+    private boolean validateEmployeeIntegrity(EmployeeImport emp, int lineNumber) {
+        List<String> errors = new ArrayList<>();
+
+        if (emp.getEmployeeRef() == null || emp.getEmployeeRef().trim().isEmpty()) {
+            errors.add("Employee Reference is required");
+        }
+        if (emp.getLastName() == null || emp.getLastName().trim().isEmpty()) {
+            errors.add("Last Name (Nom) is required");
+        }
+        if (emp.getFirstName() == null || emp.getFirstName().trim().isEmpty()) {
+            errors.add("First Name (Prenom) is required");
+        }
+        if (emp.getBirthDate() == null) {
+            errors.add("Date Naissance is required");
+        }
+
+        if (emp.getHireDate() == null) {
+            errors.add("Date Embauche is required");
+        }
+
+        if(emp.getBirthDate() != null){
+            try {
+                String formatedBd = formatDate(emp.getBirthDate());
+                emp.setBirthDate(formatedBd);
+            } catch (DateFormatException e) {
+                errors.add("BirthDate "+emp.getBirthDate()+" : "+e.getMessage());
+            }
+        }
+
+        if(emp.getHireDate() != null){
+            try {
+                String formatedHd = formatDate(emp.getHireDate());
+                emp.setHireDate(formatedHd);
+            } catch (DateFormatException e) {
+                errors.add("HireDate "+emp.getHireDate()+" : "+e.getMessage());
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            for (String error : errors) {
+                errorMap.get("employees").add("Line " + lineNumber + ": " + error);
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean validateSalaryStructureIntegrity(SalaryStructureImport struct, int lineNumber) {
+        List<String> errors = new ArrayList<>();
+
+        if (struct.getSalaryStructure() == null || struct.getSalaryStructure().trim().isEmpty()) {
+            errors.add("Salary Structure Name is required");
+        }
+        if (struct.getName() == null || struct.getName().trim().isEmpty()) {
+            errors.add("Component Name is required");
+        }
+        if (struct.getAbbreviation() == null || struct.getAbbreviation().trim().isEmpty()) {
+            errors.add("Abbreviation is required");
+        }
+
+        if (struct.getName() != null && struct.getName().length() > 140) {
+            errors.add("Component name exceeds 140 characters");
+        }
+        if (struct.getAbbreviation() != null && struct.getAbbreviation().length() > 100) {
+            errors.add("Abbreviation exceeds 100 characters");
+        }
+
+        String type = struct.getType() != null ? struct.getType().toLowerCase() : "earning";
+        if (!Arrays.asList("earning", "deduction").contains(type)) {
+            errors.add("Type must be 'earning' or 'deduction'");
+        }
+
+        if (!errors.isEmpty()) {
+            for (String error : errors) {
+                errorMap.get("salary_structures").add("Line " + lineNumber + ": " + error);
+            }
+            return false;
+        }
+
+        return true;
+    }
+
+    private boolean validateSalaryRecordIntegrity(SalaryRecordImport record, int lineNumber) {
+        List<String> errors = new ArrayList<>();
+    
+        if (record.getEmployeeRef() == null || record.getEmployeeRef().trim().isEmpty()) {
+            errors.add("Employee Reference is required");
+        }
+        if (record.getMonth() == null || record.getMonth().trim().isEmpty()) {
+            errors.add("Month is required");
+        } else {
+            try {
+                String formatedMonth = formatDate(record.getMonth());
+                record.setMonth(formatedMonth);
+            } catch (DateFormatException e) {
+                errors.add("BirthDate "+record.getMonth()+" : "+e.getMessage());
+            }
+        }
+
+        if (record.getBaseSalary() == null || record.getBaseSalary() < 0) {
+            errors.add("Base Salary is required and must be non-negative");
+        }
+        if (record.getSalaryStructure() == null || record.getSalaryStructure().trim().isEmpty()) {
+            errors.add("Salary Structure is required");
+        }
+        if (record.getEmployeeRef() != null && !employeeRefMap.containsKey(record.getEmployeeRef())) {
+            errors.add("Employee with Ref '" + record.getEmployeeRef() + "' not found in processed employees");
+        }
+    
+        if (!errors.isEmpty()) {
+            for (String error : errors) {
+                errorMap.get("salary_records").add("Line " + lineNumber + ": " + error);
+            }
+            return false;
+        }
+    
+        return true;
+    }
+
+    // Data insertion methods (equivalent to insert_data in Python classes)
+
+    private String insertEmployeeData(EmployeeImport emp, int lineNumber, User user) {
+        try {
+            logStep("Creating employee: " + emp.getEmployeeRef());
+
+            // Check if employee already exists
+            String existingEmployee = checkExistingEmployee(emp.getEmployeeRef(), user);
+            if (existingEmployee != null && !forceUpdate) {
+                logStep("Employee " + emp.getEmployeeRef() + " already exists. Skipping.");
+                return existingEmployee;
+            }
+
+            // Prepare employee data
+            Map<String, Object> employeeData = new HashMap<>();
+            employeeData.put("ref", emp.getEmployeeRef());
+            employeeData.put("first_name", emp.getFirstName());
+            employeeData.put("last_name", emp.getLastName());
+            employeeData.put("employee_name", emp.getFirstName() + " " + emp.getLastName());
+            employeeData.put("gender", mapGender(emp.getGender()));
+            employeeData.put("date_of_birth", formatIntoFrappeDate(emp.getBirthDate()));
+            employeeData.put("date_of_joining", formatIntoFrappeDate(emp.getHireDate()));
+            employeeData.put("company",
+                    getOrCreateCompany(emp.getCompany() != null ? emp.getCompany() : "Default Company", user));
+            employeeData.put("status", "Active");
+            employeeData.put("department",
+                    getOrCreateDepartment("Human Resources", (String) employeeData.get("company"), user));
+            employeeData.put("designation", getOrCreateDesignation("Employee", user));
+            employeeData.put("branch", getOrCreateBranch("Main Branch", (String) employeeData.get("company"), user));
+            employeeData.put("employment_type", "Full-time");
+
+            String employeeName;
+            if (existingEmployee != null && forceUpdate) {
+                employeeName = updateFrappeDocument("Employee", existingEmployee, employeeData, user);
+                logStep("Updated employee: " + employeeName);
+            } else {
+                employeeName = createFrappeDocument("Employee", employeeData, user, true);
+                logStep("Created employee: " + employeeName);
+            }
+
+            return employeeName;
+
+        } catch (Exception e) {
+            logStep("Failed to insert employee: " + e.getMessage());
+            errorMap.get("employees").add("Line " + lineNumber + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String insertSalaryStructureData(SalaryStructureImport struct, int lineNumber, User user) {
+        try {
+            logStep("Processing component '" + struct.getName() + "' for structure '" + struct.getSalaryStructure()
+                    + "'");
+
+            // Get or create company
+            String company = getOrCreateCompany(struct.getCompany() != null ? struct.getCompany() : "Default Company",
+                    user);
+
+            // Get or create salary structure
+            String structureDoc = getOrCreateSalaryStructure(struct, company, user);
+            if (structureDoc == null) {
+                return null;
+            }
+
+            // Ensure salary component exists
+            if (!ensureSalaryComponentExists(struct, company, user)) {
+                return null;
+            }
+
+            // Update structure with component
+            return updateStructureComponent(structureDoc, struct, user);
+
+        } catch (Exception e) {
+            logStep("Error: " + e.getMessage());
+            errorMap.get("salary_structures").add("Line " + lineNumber + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String insertSalaryRecordData(SalaryRecordImport record, int lineNumber, User user) {
+        try {
+            // Get employee name from our reference map
+            String employeeName = employeeRefMap.get(record.getEmployeeRef());
+            logStep("Processing SR for employee : "+employeeName);
+            if (employeeName == null) {
+                throw new RuntimeException("Employee with Ref '" + record.getEmployeeRef() + "' not found");
+            }
+
+            // Validate salary structure exists
+            logStep("Start check existing salary Strucutre : "+record.getSalaryStructure());
+            String salaryStructure = checkExistingSalaryStructure(record.getSalaryStructure(), user);
+            if (salaryStructure == null) {
+                throw new RuntimeException("Salary Structure '" + record.getSalaryStructure() + "' not found");
+            }
+            logStep("Found Salary Structure : "+salaryStructure);
+
+            logStep("Parse month date " + record.getMonth() + " into Date");
+            SimpleDateFormat parser = new SimpleDateFormat("dd/MM/yyyy");
+            java.util.Date utilDate = null; // Use java.util.Date as an intermediate for parsing
+
+            try {
+                utilDate = parser.parse(record.getMonth());
+            } catch (java.text.ParseException e) {
+                logStep("Error parsing month date '" + record.getMonth() + "' into a java.util.Date object: " + e.getMessage());
+                throw new RuntimeException("Failed to parse month date: " + record.getMonth(), e);
+            }
+            Date monthDate = new Date(utilDate.getTime()); // This is how you convert to java.sql.Date
+            logStep("Create calendar instance");
+            Calendar cal = Calendar.getInstance();
+            logStep("Setting time for monthdate " + monthDate);
+            cal.setTime(monthDate);
+            logStep("Format start date");
+            String startDate = formatDate(record.getMonth()); 
+            logStep("Find the last day of month");
+            cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH));
+            logStep("Format enddate");
+            java.util.Date lastDayOfMonthUtilDate = cal.getTime();
+            String endDate = formatDate(new SimpleDateFormat("dd/MM/yyyy").format(lastDayOfMonthUtilDate));
+
+
+            // Ensure fiscal year
+            logStep("Ensure fiscal year for "+monthDate);
+            String fiscalYear = ensureFiscalYear(monthDate, user);
+            if (fiscalYear == null) {
+                throw new RuntimeException("Failed to create/find fiscal year");
+            }
+            logStep("Found fiscal year : "+fiscalYear);
+
+            String company = getCompanyForEmployee(employeeName, user);
+
+            // Ensure salary structure assignment
+            logStep("Ensure salary structure assignment : "+salaryStructure+" for employee : "+employeeName+" on "+startDate);
+            if (!ensureSalaryStructureAssignment(employeeName, salaryStructure, startDate, record.getBaseSalary(),
+                    company, user)) {
+                throw new RuntimeException("Failed to create salary structure assignment");
+            }
+
+            // Create salary slip
+            Map<String, Object> slipData = new HashMap<>();
+            slipData.put("employee", employeeName);
+            slipData.put("start_date", formatIntoFrappeDate(startDate));
+            slipData.put("end_date", formatIntoFrappeDate(String.valueOf(endDate)));
+            slipData.put("salary_structure", salaryStructure);
+            slipData.put("posting_date", formatIntoFrappeDate(String.valueOf(endDate)));
+            slipData.put("payroll_frequency", "Monthly");
+            slipData.put("base_salary", record.getBaseSalary());
+            slipData.put("company", company);
+
+            logStep("Attempt to create Salary Slip");
+            return createFrappeDocument("Salary Slip", slipData, user, true);
+
+        } catch (Exception e) {
+            logStep("Failed to insert salary record: " + e.getMessage());
+            errorMap.get("salary_records").add("Line " + lineNumber + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    // Helper methods for salary structure processing
+
+    private String getOrCreateSalaryStructure(SalaryStructureImport struct, String company, User user) {
+        try {
+            // Check if structure exists
+            String existingStructure = checkExistingSalaryStructure(struct.getSalaryStructure(), user);
+            if (existingStructure != null) {
+                logStep("Found existing Salary Structure: " + struct.getSalaryStructure());
+                return existingStructure;
+            }
+
+            logStep("Creating new Salary Structure: " + struct.getSalaryStructure());
+            Map<String, Object> structureData = new HashMap<>();
+            structureData.put("salary_structure_name", struct.getSalaryStructure());
+            structureData.put("name", struct.getSalaryStructure());
+            structureData.put("is_active", "Yes");
+            structureData.put("currency", getCurrencyForCompany(company, user));
+            structureData.put("company", company);
+            structureData.put("payroll_frequency", "Monthly");
+
+            String docName = createFrappeDocument("Salary Structure", structureData, user, true);
+            if (docName != null) {
+                // Submit the Salary Structure to make it active
+                boolean submitted = submitFrappeDocument("Salary Structure", docName, user);
+                if (submitted) {
+                    logStep("Submitted Salary Structure: " + docName);
+                } else {
+                    logStep("Failed to submit Salary Structure: " + docName);
+                    errorMap.get("salary_structures").add("Failed to submit Salary Structure: " + docName);
+                    return null;
+                }
+            }
+            logStep("Created new structure: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            errorMap.get("salary_structures").add("Failed to get/create structure: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean ensureSalaryComponentExists(SalaryStructureImport struct, String company, User user) {
+        try {
+            String existingComponent = checkExistingSalaryComponent(struct.getName(), user);
+            if (existingComponent == null) {
+                logStep("Creating Salary Component: " + struct.getName());
+                Map<String, Object> componentData = new HashMap<>();
+                componentData.put("salary_component", struct.getName());
+                componentData.put("type",
+                        struct.getType().substring(0, 1).toUpperCase() + struct.getType().substring(1).toLowerCase());
+                componentData.put("description", "Auto-created for structure '" + struct.getSalaryStructure() + "'");
+                componentData.put("is_deductible_from_income_tax", 0);
+                componentData.put("company", company);
+                componentData.put("salary_component_abbr", struct.getAbbreviation());
+                componentData.put("amount_based_on_formula", 1);
+                componentData.put("depends_on_payment_days", 0);
+                if (struct.getValeur() != null) {
+                    componentData.put("formula", struct.getValeur().trim());
+                }
+
+                String docName = createFrappeDocument("Salary Component", componentData, user, true);
+                if (docName != null) {
+                    // Submit the component
+                    submitFrappeDocument("Salary Component", docName, user);
+                    logStep("Component created and submitted: " + docName);
+                } else {
+                    return false;
+                }
+            } else {
+                // Update existing component
+                Map<String, Object> updateData = new HashMap<>();
+                updateData.put("salary_component_abbr", struct.getAbbreviation());
+                updateData.put("amount_based_on_formula", 1);
+                updateData.put("depends_on_payment_days", 0);
+                if (struct.getValeur() != null) {
+                    updateData.put("formula", struct.getValeur().trim());
+                }
+
+                String updated = updateFrappeDocument("Salary Component", existingComponent, updateData, user);
+                if (updated != null) {
+                    submitFrappeDocument("Salary Component", updated, user);
+                    logStep("Component updated and resubmitted: " + updated);
+                }
+            }
+            return true;
+
+        } catch (Exception e) {
+            errorMap.get("salary_structures").add("Failed to ensure component: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String updateStructureComponent(String structureDocName, SalaryStructureImport struct, User user) {
+        try {
+            // Get the existing structure document
+            Map<String, Object> structureDoc = getFrappeDocument("Salary Structure", structureDocName, user);
+            if (structureDoc == null) {
+                throw new RuntimeException("Structure document not found: " + structureDocName);
+            }
+
+            String field = struct.getType().equalsIgnoreCase("earning") ? "earnings" : "deductions";
+
+            // Get existing components list
+
+            List<Map<String, Object>> components = (List<Map<String, Object>>) structureDoc.get(field);
+            if (components == null) {
+                components = new ArrayList<>();
+            }
+
+            // Check if component already exists
+            Map<String, Object> existingComp = null;
+            for (Map<String, Object> comp : components) {
+                if (struct.getName().equals(comp.get("salary_component"))) {
+                    existingComp = comp;
+                    break;
+                }
+            }
+
+            Map<String, Object> comp;
+            if (existingComp == null) {
+                logStep("Appending " + struct.getType() + " component '" + struct.getName() + "'");
+                comp = new HashMap<>();
+                comp.put("salary_component", struct.getName());
+                components.add(comp);
+            } else {
+                logStep("Updating existing " + struct.getType() + " component '" + struct.getName() + "'");
+                comp = existingComp;
+            }
+
+            // Set component properties
+            comp.put("abbr", struct.getAbbreviation());
+            if (struct.getValeur() != null) {
+                comp.put("formula", struct.getValeur().trim());
+                comp.put("amount_based_on_formula", 1);
+                comp.put("depends_on_payment_days", 0);
+            } else {
+                comp.put("amount_based_on_formula", 1);
+                comp.put("depends_on_payment_days", 0);
+            }
+
+            // Update the structure document
+            Map<String, Object> updateData = new HashMap<>();
+            updateData.put(field, components);
+
+            String updated = updateFrappeDocument("Salary Structure", structureDocName, updateData, user);
+            logStep("Component '" + struct.getName() + "' processed for structure '" + structureDocName + "'");
+            return updated;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to update structure component: " + e.getMessage());
+        }
+    }
+
+    // Utility methods
+
+    private Date parseMonthDate(String monthStr) {
+        try {
+            LocalDate parsedDate = LocalDate.parse(monthStr, DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            return Date.valueOf(parsedDate);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid Month format. Expected dd/MM/yyyy");
+        }
+    }
+
+    private String getCurrencyForCompany(String company, User user) {
+        try {
+            Map<String, Object> companyDoc = getFrappeDocument("Company", company, user);
+            return companyDoc != null ? (String) companyDoc.get("default_currency") : "USD";
+        } catch (Exception e) {
+            return "USD";
+        }
+    }
+
+    private String checkExistingSalaryComponent(String name, User user) {
+        Map<String, Object> response = getFrappeDocument("Salary Component", name, user);
+        return response != null ? name : null;
+    }
+
+    private String checkExistingSalaryStructure(String name, User user) {
+        Map<String, Object> response = getFrappeDocument("Salary Structure", name, user);
+        return response != null ? name : null;
+    }
+
+    private String checkExistingEmployee(String ref, User user) {
+        try {
+            // Search for employee by ref field
+            Map<String, Object> filters = new HashMap<>();
+            filters.put("ref", ref);
+
+            List<Map<String, Object>> employees = searchFrappeDocuments("Employee", filters, user);
+            if (employees != null && !employees.isEmpty()) {
+                return (String) employees.get(0).get("name");
+            }
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String getCompanyForEmployee(String employeeName, User user) {
+        try {
+            Map<String, Object> emp = getFrappeDocument("Employee", employeeName, user);
+            return emp != null ? (String) emp.get("company") : "Default Company";
+        } catch (Exception e) {
+            return "Default Company";
+        }
+    }
+
+    private boolean ensureSalaryStructureAssignment(String employee, String salaryStructure,
+            String fromDate, Double baseSalary, String company, User user) {
+        try {
+            // Check if assignment already exists
+            Map<String, Object> filters = new HashMap<>();
+            filters.put("employee", employee);
+            filters.put("salary_structure", salaryStructure);
+            filters.put("from_date", formatIntoFrappeDate(fromDate));
+            // filters.put("to_date", formatIntoFrappeDate(toDate.toString()));
+
+            List<Map<String, Object>> assignments = searchFrappeDocuments("Salary Structure Assignment", filters, user);
+            if (assignments != null && !assignments.isEmpty()) {
+                logStep("Salary structure assignment already exists");
+                return true;
+            }
+
+            // Create new assignment
+            Map<String, Object> assignmentData = new HashMap<>();
+            assignmentData.put("employee", employee);
+            assignmentData.put("salary_structure", salaryStructure);
+            assignmentData.put("from_date", formatIntoFrappeDate(fromDate));
+            // assignmentData.put("to_date", formatIntoFrappeDate(toDate.toString()));
+            assignmentData.put("base", baseSalary);
+            assignmentData.put("company", company);
+
+            String docName = createFrappeDocument("Salary Structure Assignment", assignmentData, user, true);
+            if (docName != null) {
+                submitFrappeDocument("Salary Structure Assignment", docName, user);
+                logStep("Created salary structure assignment: " + docName);
+                return true;
+            }
+            return false;
+
+        } catch (Exception e) {
+            logStep("Failed to ensure salary structure assignment: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String ensureFiscalYear(Date date, User user) {
+        try {
+            Calendar cal = Calendar.getInstance();
+            cal.setTime(date);
+            int year = cal.get(Calendar.YEAR);
+
+            String fiscalYearName = String.valueOf(year);
+
+            // Check if fiscal year exists
+            Map<String, Object> existing = getFrappeDocument("Fiscal Year", fiscalYearName, user);
+            if (existing != null) {
+                return fiscalYearName;
+            }
+
+            // Create fiscal year
+            Map<String, Object> fiscalData = new HashMap<>();
+            fiscalData.put("year", fiscalYearName);
+            fiscalData.put("year_start_date", year + "-01-01");
+            fiscalData.put("year_end_date", year + "-12-31");
+            fiscalData.put("is_short_year", 0);
+
+            String docName = createFrappeDocument("Fiscal Year", fiscalData, user, true);
+            logStep("Created fiscal year: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            logStep("Failed to ensure fiscal year: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // Master data creation methods
+
+    private String getOrCreateCompany(String companyName, User user) {
+        try {
+            Map<String, Object> existing = getFrappeDocument("Company", companyName, user);
+            if (existing != null) {
+                return companyName;
+            }
+
+            // Create company
+            Map<String, Object> companyData = new HashMap<>();
+            companyData.put("company_name", companyName);
+            companyData.put("abbr", companyName.substring(0, Math.min(5, companyName.length())).toUpperCase());
+            companyData.put("default_currency", "USD");
+            companyData.put("country", "Madagascar");
+            companyData.put("default_holiday_list", "Default Holiday List 2025");
+
+            String docName = createFrappeDocument("Company", companyData, user, true);
+            logStep("Created company: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            logStep("Failed to create company: " + e.getMessage());
+            return "Default Company";
+        }
+    }
+
+    private String getOrCreateDepartment(String deptName, String company, User user) {
+        try {
+            Map<String, Object> existing = getFrappeDocument("Department", deptName, user);
+            if (existing != null) {
+                return deptName;
+            }
+
+            // Create department
+            Map<String, Object> deptData = new HashMap<>();
+            deptData.put("department_name", deptName);
+            deptData.put("company", company);
+
+            String docName = createFrappeDocument("Department", deptData, user, true);
+            logStep("Created department: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            logStep("Failed to create department: " + e.getMessage());
+            return "Human Resources";
+        }
+    }
+
+    private String getOrCreateDesignation(String designation, User user) {
+        try {
+            Map<String, Object> existing = getFrappeDocument("Designation", designation, user);
+            if (existing != null) {
+                return designation;
+            }
+
+            // Create designation
+            Map<String, Object> designationData = new HashMap<>();
+            designationData.put("designation_name", designation);
+
+            String docName = createFrappeDocument("Designation", designationData, user, true);
+            logStep("Created designation: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            logStep("Failed to create designation: " + e.getMessage());
+            return "Employee";
+        }
+    }
+
+    private String getOrCreateBranch(String branchName, String company, User user) {
+        try {
+            Map<String, Object> existing = getFrappeDocument("Branch", branchName, user);
+            if (existing != null) {
+                return branchName;
+            }
+
+            // Create branch
+            Map<String, Object> branchData = new HashMap<>();
+            branchData.put("branch", branchName);
+            branchData.put("company", company);
+
+            String docName = createFrappeDocument("Branch", branchData, user, true);
+            logStep("Created branch: " + docName);
+            return docName;
+
+        } catch (Exception e) {
+            logStep("Failed to create branch: " + e.getMessage());
+            return "Main Branch";
+        }
+    }
+
+    // Frappe API interaction methods
+
+    private Map<String, Object> getFrappeDocument(String doctype, String name, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                Map<String, Object> data = (Map<String, Object>) response.getBody().get("data");
+                return data;
+            }
+            return null;
+        } catch (Exception e) {
+            logStep("Failed to get document " + doctype + "/" + name + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private List<Map<String, Object>> searchFrappeDocuments(String doctype, Map<String, Object> filters, User user) {
+        try {
+            // Convertir les filtres Map en List<String[]> pour buildUrl
+            List<String[]> filtersList = new ArrayList<>();
+            for (Map.Entry<String, Object> entry : filters.entrySet()) {
+                filtersList.add(new String[] { entry.getKey(), "=", entry.getValue().toString() });
+            }
+
+            String url = restApiService.buildUrl(doctype, null, filtersList);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.GET,
+                    null,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                List<Map<String, Object>> data = (List<Map<String, Object>>) response.getBody().get("data");
+                return data;
+            }
+            return new ArrayList<>();
+        } catch (Exception e) {
+            logStep("Failed to search documents " + doctype + ": " + e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    private String createFrappeDocument(String doctype, Map<String, Object> data, User user, boolean submit) {
+        try {
+
+            System.out.println(data);
+            String url = restApiService.buildUrl(doctype, null, null);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.POST,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
+                String resultName = (String) responseData.get("name");
+                if (resultName != null && submit) {
+                    submitFrappeDocument(doctype, resultName, user);
+                }
+                return resultName;
+            }
+            return null;
+        } catch (Exception e) {
+            logStep("Failed to create document " + doctype + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private String updateFrappeDocument(String doctype, String name, Map<String, Object> data, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.PUT,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
+                return (String) responseData.get("name");
+            }
+            return null;
+        } catch (Exception e) {
+            logStep("Failed to update document " + doctype + "/" + name + ": " + e.getMessage());
+            return null;
+        }
+    }
+
+    private boolean submitFrappeDocument(String doctype, String name, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("docstatus", 1);
 
             ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    importUrl,
-                    HttpMethod.POST,
-                    requestBody,
+                    url,
+                    HttpMethod.PUT,
+                    data,
                     user,
-                    new ParameterizedTypeReference<>() {}
-            );
-
-            return processErpNextResponse(response.getBody());
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            logger.error("Failed to process import: {}", e.getMessage(), e);
-            throw new Exception("Import operation failed: " + e.getMessage());
+            logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage());
+            return false;
         }
     }
 
-    private ImportData parseImportFiles(MultipartFile employeesFile, MultipartFile structuresFile, MultipartFile recordsFile) throws IOException {
-        ImportData importData = new ImportData();
-        if (employeesFile != null && !employeesFile.isEmpty()) importData.setEmployees(parseEmployeeFile(employeesFile.getInputStream()));
-        if (structuresFile != null && !structuresFile.isEmpty()) importData.setSalaryStructures(parseStructureFile(structuresFile.getInputStream()));
-        if (recordsFile != null && !recordsFile.isEmpty()) importData.setSalaryRecords(parseRecordFile(recordsFile.getInputStream()));
-        return importData;
-    }
+    // File parsing methods
 
-    private List<EmployeeImport> parseEmployeeFile(InputStream is) throws IOException {
-        try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-             CSVParser csvParser = new CSVParser(fileReader, CSVFormat.DEFAULT.withFirstRecordAsHeader().withIgnoreHeaderCase().withTrim())) {
-
-            return csvParser.getRecords().stream().map(record -> {
-                EmployeeImport emp = new EmployeeImport();
-                emp.setEmployeeRef(record.get("Ref"));
-                emp.setLastName(record.get("Nom"));
-                emp.setFirstName(record.get("Prenom"));
-                emp.setGender(record.get("genre"));
-                emp.setCompany(record.get("company"));
-                try {
-                    emp.setHireDate(Date.valueOf(LocalDate.parse(record.get("Date embauche"), DATE_FORMATTER)));
-                    emp.setBirthDate(Date.valueOf(LocalDate.parse(record.get("date naissance"), DATE_FORMATTER)));
-                } catch (DateTimeParseException e) {
-                    throw new RuntimeException("Invalid date format in employee file. Expected DD/MM/YYYY", e);
-                }
-                return emp;
-            }).collect(Collectors.toList());
+    private <T> List<T> parseFile(MultipartFile file, TypeReference<List<T>> typeRef) {
+        if (file == null || file.isEmpty()) {
+            return null;
         }
-    }
 
-    private List<SalaryStructureImport> parseStructureFile(InputStream is) throws IOException {
-        try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-             CSVParser csvParser = new CSVParser(fileReader, CSVFormat.DEFAULT.withFirstRecordAsHeader().withIgnoreHeaderCase().withTrim())) {
-
-            return csvParser.getRecords().stream().map(record -> {
-                SalaryStructureImport structure = new SalaryStructureImport();
-                structure.setSalaryStructure(record.get("salary structure"));
-                structure.setName(record.get("name"));
-                structure.setAbbreviation(record.get("Abbr"));
-                structure.setType(record.get("type"));
-                structure.setFormula(record.get("valeur"));
-                structure.setCompany(record.get("company"));
-                return structure;
-            }).collect(Collectors.toList());
-        }
-    }
-
-    private List<SalaryRecordImport> parseRecordFile(InputStream is) throws IOException {
-        try (BufferedReader fileReader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-             CSVParser csvParser = new CSVParser(fileReader, CSVFormat.DEFAULT.withFirstRecordAsHeader().withIgnoreHeaderCase().withTrim())) {
-
-            return csvParser.getRecords().stream().map(record -> {
-                SalaryRecordImport recordImport = new SalaryRecordImport();
-                recordImport.setMonth(record.get("Mois"));
-                recordImport.setEmployeeRef(record.get("Ref Employe"));
-                try {
-                    recordImport.setBaseSalary(Double.parseDouble(record.get("Salaire Base")));
-                } catch (NumberFormatException e) {
-                    throw new RuntimeException("Invalid salary base format in salary records file", e);
-                }
-                recordImport.setSalaryStructure(record.get("Salaire"));
-                return recordImport;
-            }).collect(Collectors.toList());
-        }
-    }
-
-    private void validateImportData(ImportData importData) {
-        if (importData.getEmployees() != null && importData.getSalaryRecords() != null) {
-            Set<String> employeeRefs = importData.getEmployees().stream()
-                    .map(EmployeeImport::getEmployeeRef)
-                    .collect(Collectors.toSet());
-            importData.getSalaryRecords().forEach(record -> {
-                if (!employeeRefs.contains(record.getEmployeeRef())) {
-                    throw new IllegalArgumentException("Salary record references unknown employee: " + record.getEmployeeRef());
-                }
-            });
-        }
-        if (importData.getSalaryStructures() != null && importData.getSalaryRecords() != null) {
-            Set<String> structureNames = importData.getSalaryStructures().stream()
-                    .map(SalaryStructureImport::getSalaryStructure)
-                    .collect(Collectors.toSet());
-            importData.getSalaryRecords().forEach(record -> {
-                if (!structureNames.contains(record.getSalaryStructure())) {
-                    throw new IllegalArgumentException("Salary record references unknown structure: " + record.getSalaryStructure());
-                }
-            });
-        }
-    }
-
-    private List<Map<String, String>> convertEmployees(List<EmployeeImport> employees) {
-        return employees.stream().map(emp -> {
-            Map<String, String> map = new HashMap<>();
-            map.put("Ref", emp.getEmployeeRef());
-            map.put("Nom", emp.getLastName());
-            map.put("Prenom", emp.getFirstName());
-            map.put("genre", emp.getGender());
-            map.put("Date embauche", emp.getHireDate() != null ? DATE_FORMATTER.format(emp.getHireDate().toLocalDate()) : "");
-            map.put("date naissance", emp.getBirthDate() != null ? DATE_FORMATTER.format(emp.getBirthDate().toLocalDate()) : "");
-            map.put("company", emp.getCompany());
-            return map;
-        }).collect(Collectors.toList());
-    }
-
-    private List<Map<String, String>> convertStructures(List<SalaryStructureImport> structures) {
-        return structures.stream().map(struct -> {
-            Map<String, String> map = new HashMap<>();
-            map.put("salary structure", struct.getSalaryStructure());
-            map.put("name", struct.getName());
-            map.put("Abbr", struct.getAbbreviation());
-            map.put("type", struct.getType());
-            map.put("valeur", struct.getFormula());
-            map.put("company", struct.getCompany());
-            return map;
-        }).collect(Collectors.toList());
-    }
-
-    private List<Map<String, String>> convertRecords(List<SalaryRecordImport> records) {
-        return records.stream().map(record -> {
-            Map<String, String> map = new HashMap<>();
-            map.put("Mois", record.getMonth());
-            map.put("Ref Employe", record.getEmployeeRef());
-            map.put("Salaire Base", String.valueOf(record.getBaseSalary()));
-            map.put("Salaire", record.getSalaryStructure());
-            return map;
-        }).collect(Collectors.toList());
-    }
-
-    private ImportResult processErpNextResponse(Map<String, Object> responseBody) {
-        ImportResult result = new ImportResult();
         try {
-            if (responseBody.containsKey("success")) {
-                result.setSuccess((Boolean) responseBody.get("success"));
-                result.setMessage((String) responseBody.get("message"));
-                if (responseBody.get("counts") instanceof Map) {
-                    result.setCounts((Map<String, Object>) responseBody.get("counts"));
-                }
-                if (responseBody.get("errors") instanceof Map) {
-                    result.setErrors(processErrors((Map<String, Object>) responseBody.get("errors")));
-                }
-                if (responseBody.get("warnings") instanceof Map) {
-                    result.setWarnings(processErrors((Map<String, Object>) responseBody.get("warnings")));
-                }
-                logger.info("Import result: success={}, totalRecords={}", result.isSuccess(), result.getTotalRecordsCreated());
+            String filename = file.getOriginalFilename();
+            if (filename == null) {
+                return null;
+            }
+
+            if (filename.toLowerCase().endsWith(".csv")) {
+                return parseCsvFile(file, typeRef);
+            } else if (filename.toLowerCase().endsWith(".json")) {
+                return parseJsonFile(file, typeRef);
             } else {
-                boolean hasErrors = responseBody.values().stream().anyMatch(value -> value instanceof List && !((List<?>) value).isEmpty());
-                result.setSuccess(!hasErrors);
-                result.setMessage(hasErrors ? "Import failed with errors" : "Import completed successfully");
-                result.setErrors(processErrors(responseBody));
+                logStep("Unsupported file format: " + filename);
+                return null;
             }
         } catch (Exception e) {
-            logger.error("Error processing ERPNext response: {}", e.getMessage(), e);
-            result.setSuccess(false);
-            result.setMessage("Error processing import response: " + e.getMessage());
+            logStep("Failed to parse file: " + e.getMessage());
+            return null;
         }
-        return result;
     }
 
-    private Map<String, List<String>> processErrors(Map<String, Object> errors) {
-        Map<String, List<String>> processedErrors = new HashMap<>();
-        for (Map.Entry<String, Object> entry : errors.entrySet()) {
-            if (entry.getValue() instanceof List) {
-                processedErrors.put(entry.getKey(), ((List<?>) entry.getValue()).stream()
-                        .map(Object::toString)
-                        .collect(Collectors.toList()));
+    private <T> List<T> parseCsvFile(MultipartFile file, TypeReference<List<T>> typeRef) throws IOException {
+        try (InputStreamReader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
+            Class<?> targetClass = getClassFromTypeReference(typeRef);
+            CsvToBean<T> csvToBean = new CsvToBeanBuilder<T>(reader)
+                    .withType((Class<T>) targetClass)
+                    .withIgnoreLeadingWhiteSpace(true)
+                    .withThrowExceptions(false) // Ne pas lever d'exceptions immédiatement
+                    .build();
+
+            List<T> beans = new ArrayList<>();
+            String category = getCategoryFromTypeReference(typeRef);
+
+            // Parcourir les résultats pour capturer les exceptions
+            Iterator<T> iterator = csvToBean.iterator();
+            int lineNumber = 1;
+            while (iterator.hasNext()) {
+                try {
+                    T bean = iterator.next();
+                    beans.add(bean);
+                } catch (Exception exception) {
+                    String errorMessage = String.format("Line %d: Failed to parse record: %s", lineNumber, exception.getMessage());
+                    errorMap.get(category).add(errorMessage);
+                    logStep(errorMessage);
+                }
+                lineNumber++;
+            }
+
+            // Collecter les beans valides
+            csvToBean.iterator().forEachRemaining(beans::add);
+
+            if (!beans.isEmpty()) {
+                logStep("Parsed " + beans.size() + " records from CSV file");
+            } else if (!errorMap.get(category).isEmpty()) {
+                logStep("No records parsed due to errors in CSV file");
+            }
+
+            return beans.isEmpty() && !errorMap.get(category).isEmpty() ? null : beans;
+        }
+    }
+    private <T> List<T> parseJsonFile(MultipartFile file, TypeReference<List<T>> typeRef) throws IOException {
+        List<T> data = objectMapper.readValue(file.getInputStream(), typeRef);
+        logStep("Parsed " + data.size() + " records from JSON file");
+        return data;
+    }
+
+    private Class<?> getClassFromTypeReference(TypeReference<?> typeRef) {
+        if (typeRef.getType().getTypeName().contains("EmployeeImport")) {
+            return EmployeeImport.class;
+        } else if (typeRef.getType().getTypeName().contains("SalaryStructureImport")) {
+            return SalaryStructureImport.class;
+        } else if (typeRef.getType().getTypeName().contains("SalaryRecordImport")) {
+            return SalaryRecordImport.class;
+        }
+        throw new IllegalArgumentException("Unknown type reference: " + typeRef.getType());
+    }
+
+    // Utility methods
+
+    private String mapGender(String gender) {
+        if (gender == null)
+            return "Other";
+
+        switch (gender.toLowerCase()) {
+            case "m":
+            case "male":
+            case "masculin":
+                return "Male";
+            case "f":
+            case "female":
+            case "feminin":
+                return "Female";
+            default:
+                return "Other";
+        }
+    }
+
+    
+    public static String formatDate(String date) throws DateFormatException {
+        if (date == null)
+            return null;
+
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale.FRANCE);
+            LocalDate localDate = LocalDate.parse(date, formatter);
+            return localDate.format(formatter); 
+        } catch (DateTimeParseException e) {
+            throw new DateFormatException("Format date not valid, format should be : dd/MM/yyyy");
+        }
+    }
+
+    public static String formatIntoFrappeDate(String date) {
+        try {
+            DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            DateTimeFormatter frappeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            LocalDate localDate = LocalDate.parse(date, inputFormat);
+            return localDate.format(frappeFormat);
+        } catch (DateTimeParseException e) {
+            System.err.println("Invalid date format: " + date);
+            return null;
+        }
+    }
+
+    private void logStep(String message) {
+        logger.info(message);
+    }
+
+    private boolean hasErrors() {
+        return errorMap.values().stream().anyMatch(list -> !list.isEmpty());
+    }
+
+    private int getTotalCreatedRecords() {
+        return logCounts.get("employees_created") +
+                logCounts.get("salary_structures_created") +
+                logCounts.get("salary_records_created");
+    }
+
+    private void copyErrorsToResult(ImportResult result) {
+        for (Map.Entry<String, List<String>> entry : errorMap.entrySet()) {
+            String category = entry.getKey();
+            for (String error : entry.getValue()) {
+                result.addError(category, error);
             }
         }
-        return processedErrors;
+    }
+
+    private String getCategoryFromTypeReference(TypeReference<?> typeRef) {
+        if (typeRef.getType().getTypeName().contains("EmployeeImport")) {
+            return "employees";
+        } else if (typeRef.getType().getTypeName().contains("SalaryStructureImport")) {
+            return "salary_structures";
+        } else if (typeRef.getType().getTypeName().contains("SalaryRecordImport")) {
+            return "salary_records";
+        }
+        return "unknown";
+    }
+
+    public void setForceUpdate(boolean forceUpdate) {
+        this.forceUpdate = forceUpdate;
+    }
+
+    public Map<String, Integer> getLogCounts() {
+        return new HashMap<>(logCounts);
+    }
+
+    public Map<String, List<String>> getCreatedDocs() {
+        return new HashMap<>(createdDocs);
+    }
+
+    public Map<String, List<String>> getErrorMap() {
+        return new HashMap<>(errorMap);
+    }
+
+    public Map<String, String> getEmployeeRefMap() {
+        return new HashMap<>(employeeRefMap);
+    }
+
+    public static void main(String[] args) throws DateFormatException {
+        System.out.println(formatDate("03/04/2024"));  // should print: 03/04/2024
     }
 }
