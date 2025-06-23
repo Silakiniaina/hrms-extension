@@ -459,7 +459,7 @@ public class ImportService {
                 employeeName = updateFrappeDocument("Employee", existingEmployee, employeeData, user);
                 logStep("Updated employee: " + employeeName);
             } else {
-                employeeName = createFrappeDocument("Employee", employeeData, user, true);
+                employeeName = frappeService.createFrappeDocument("Employee", employeeData, user, true);
                 logStep("Created employee: " + employeeName);
             }
 
@@ -572,7 +572,7 @@ public class ImportService {
             slipData.put("company", company);
 
             logStep("Attempt to create Salary Slip");
-            return createFrappeDocument("Salary Slip", slipData, user, true);
+            return frappeService.createFrappeDocument("Salary Slip", slipData, user, true);
 
         } catch (Exception e) {
             logStep("Failed to insert salary record: " + e.getMessage());
@@ -601,10 +601,10 @@ public class ImportService {
             structureData.put("company", company);
             structureData.put("payroll_frequency", "Monthly");
 
-            String docName = createFrappeDocument("Salary Structure", structureData, user, true);
+            String docName = frappeService.createFrappeDocument("Salary Structure", structureData, user, true);
             if (docName != null) {
                 // Submit the Salary Structure to make it active
-                boolean submitted = submitFrappeDocument("Salary Structure", docName, user);
+                boolean submitted = frappeService.submitFrappeDocument("Salary Structure", docName, user);
                 if (submitted) {
                     logStep("Submitted Salary Structure: " + docName);
                 } else {
@@ -641,10 +641,10 @@ public class ImportService {
                     componentData.put("formula", struct.getValeur().trim());
                 }
 
-                String docName = createFrappeDocument("Salary Component", componentData, user, true);
+                String docName = frappeService.createFrappeDocument("Salary Component", componentData, user, true);
                 if (docName != null) {
                     // Submit the component
-                    submitFrappeDocument("Salary Component", docName, user);
+                    frappeService.submitFrappeDocument("Salary Component", docName, user);
                     logStep("Component created and submitted: " + docName);
                 } else {
                     return false;
@@ -661,7 +661,7 @@ public class ImportService {
 
                 String updated = updateFrappeDocument("Salary Component", existingComponent, updateData, user);
                 if (updated != null) {
-                    submitFrappeDocument("Salary Component", updated, user);
+                    frappeService.submitFrappeDocument("Salary Component", updated, user);
                     logStep("Component updated and resubmitted: " + updated);
                 }
             }
@@ -814,9 +814,9 @@ public class ImportService {
             assignmentData.put("base", baseSalary);
             assignmentData.put("company", company);
 
-            String docName = createFrappeDocument("Salary Structure Assignment", assignmentData, user, true);
+            String docName = frappeService.createFrappeDocument("Salary Structure Assignment", assignmentData, user, true);
             if (docName != null) {
-                submitFrappeDocument("Salary Structure Assignment", docName, user);
+                frappeService.submitFrappeDocument("Salary Structure Assignment", docName, user);
                 logStep("Created salary structure assignment: " + docName);
                 return true;
             }
@@ -849,7 +849,7 @@ public class ImportService {
             fiscalData.put("year_end_date", year + "-12-31");
             fiscalData.put("is_short_year", 0);
 
-            String docName = createFrappeDocument("Fiscal Year", fiscalData, user, true);
+            String docName = frappeService.createFrappeDocument("Fiscal Year", fiscalData, user, true);
             logStep("Created fiscal year: " + docName);
             return docName;
 
@@ -876,7 +876,7 @@ public class ImportService {
             companyData.put("country", "Madagascar");
             companyData.put("default_holiday_list", "Default Holiday List 2025");
 
-            String docName = createFrappeDocument("Company", companyData, user, true);
+            String docName = frappeService.createFrappeDocument("Company", companyData, user, true);
             logStep("Created company: " + docName);
             return docName;
 
@@ -898,7 +898,7 @@ public class ImportService {
             deptData.put("department_name", deptName);
             deptData.put("company", company);
 
-            String docName = createFrappeDocument("Department", deptData, user, true);
+            String docName = frappeService.createFrappeDocument("Department", deptData, user, true);
             logStep("Created department: " + docName);
             return docName;
 
@@ -919,7 +919,7 @@ public class ImportService {
             Map<String, Object> designationData = new HashMap<>();
             designationData.put("designation_name", designation);
 
-            String docName = createFrappeDocument("Designation", designationData, user, true);
+            String docName = frappeService.createFrappeDocument("Designation", designationData, user, true);
             logStep("Created designation: " + docName);
             return docName;
 
@@ -941,7 +941,7 @@ public class ImportService {
             branchData.put("branch", branchName);
             branchData.put("company", company);
 
-            String docName = createFrappeDocument("Branch", branchData, user, true);
+            String docName = frappeService.createFrappeDocument("Branch", branchData, user, true);
             logStep("Created branch: " + docName);
             return docName;
 
@@ -955,34 +955,7 @@ public class ImportService {
 
     
 
-    private String createFrappeDocument(String doctype, Map<String, Object> data, User user, boolean submit) {
-        try {
 
-            System.out.println(data);
-            String url = restApiService.buildUrl(doctype, null, null);
-            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    url,
-                    HttpMethod.POST,
-                    data,
-                    user,
-                    new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
-
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-
-                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
-                String resultName = (String) responseData.get("name");
-                if (resultName != null && submit) {
-                    submitFrappeDocument(doctype, resultName, user);
-                }
-                return resultName;
-            }
-            return null;
-        } catch (Exception e) {
-            logStep("Failed to create document " + doctype + ": " + e.getMessage());
-            return null;
-        }
-    }
 
     private String updateFrappeDocument(String doctype, String name, Map<String, Object> data, User user) {
         try {
@@ -1007,25 +980,7 @@ public class ImportService {
         }
     }
 
-    private boolean submitFrappeDocument(String doctype, String name, User user) {
-        try {
-            String url = restApiService.buildResourceUrl(doctype, name, null);
-            Map<String, Object> data = new HashMap<>();
-            data.put("docstatus", 1);
-
-            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
-                    url,
-                    HttpMethod.PUT,
-                    data,
-                    user,
-                    new ParameterizedTypeReference<Map<String, Object>>() {
-                    });
-            return response.getStatusCode().is2xxSuccessful();
-        } catch (Exception e) {
-            logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage());
-            return false;
-        }
-    }
+    
 
     // File parsing methods
 
