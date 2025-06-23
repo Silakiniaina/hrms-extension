@@ -1,6 +1,7 @@
 package mg.hrms.services;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -80,6 +81,62 @@ public class FrappeService {
         } catch (Exception e) {
             OperationUtils.logStep("Failed to search documents " + doctype + ": " + e.getMessage(), logger);
             return new ArrayList<>();
+        }
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Create a document                             */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings({ "unchecked", "null" })
+    public String createFrappeDocument(String doctype, Map<String, Object> data, User user, boolean submit) {
+        try {
+
+            System.out.println(data);
+            String url = restApiService.buildUrl(doctype, null, null);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.POST,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
+                String resultName = (String) responseData.get("name");
+                if (resultName != null && submit) {
+                    submitFrappeDocument(doctype, resultName, user);
+                }
+                return resultName;
+            }
+            return null;
+        } catch (Exception e) {
+            OperationUtils.logStep("Failed to create document " + doctype + ": " + e.getMessage(), logger);
+            return null;
+        }
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Submit a document                             */
+    /* -------------------------------------------------------------------------- */
+    public boolean submitFrappeDocument(String doctype, String name, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("docstatus", 1);
+
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.PUT,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            OperationUtils.logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage(), logger);
+            return false;
         }
     }
 }
