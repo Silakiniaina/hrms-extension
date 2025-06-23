@@ -158,7 +158,30 @@ public class FrappeService {
                     });
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
-            OperationUtils.logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage(), logger);
+            OperationUtils.logStep("Failed to cancel document " + doctype + "/" + name + ": " + e.getMessage(), logger);
+            return false;
+        }
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Delete a document                             */
+    /* -------------------------------------------------------------------------- */
+    public boolean deleteFrappeDocument(String doctype, String name, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            Map<String, Object> data = new HashMap<>();
+            data.put("name", name);
+
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.DELETE,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            OperationUtils.logStep("Failed to delete document " + doctype + "/" + name + ": " + e.getMessage(), logger);
             return false;
         }
     }
