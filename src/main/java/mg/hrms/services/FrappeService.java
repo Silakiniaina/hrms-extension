@@ -139,4 +139,31 @@ public class FrappeService {
             return false;
         }
     }
+
+    /* -------------------------------------------------------------------------- */
+    /*                              Update a document                             */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings({ "unchecked", "null" })
+    public String updateFrappeDocument(String doctype, String name, Map<String, Object> data, User user) {
+        try {
+            String url = restApiService.buildResourceUrl(doctype, name, null);
+            ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
+                    url,
+                    HttpMethod.PUT,
+                    data,
+                    user,
+                    new ParameterizedTypeReference<Map<String, Object>>() {
+                    });
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+
+                Map<String, Object> responseData = (Map<String, Object>) response.getBody().get("data");
+                return (String) responseData.get("name");
+            }
+            return null;
+        } catch (Exception e) {
+            OperationUtils.logStep("Failed to update document " + doctype + "/" + name + ": " + e.getMessage(), logger);
+            return null;
+        }
+    }
 }
