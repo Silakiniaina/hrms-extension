@@ -39,7 +39,13 @@ public class OperationUtils {
     /*                            Format to frappe date                           */
     /* -------------------------------------------------------------------------- */
     public static String formatIntoFrappeDate(String date) {
+        System.out.println("Attempting to format date "+date+" to format yyyy-MM-dd");
         try {
+            if(date.contains("-")){
+                System.out.println("Date format of "+date+" already satisfied");
+                return date;
+            }
+
             DateTimeFormatter inputFormat = DateTimeFormatter.ofPattern("dd/MM/yyyy");
             DateTimeFormatter frappeFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
             LocalDate localDate = LocalDate.parse(date, inputFormat);
