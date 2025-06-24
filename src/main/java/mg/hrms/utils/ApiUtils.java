@@ -1,7 +1,5 @@
 package mg.hrms.utils;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -36,6 +34,7 @@ public class ApiUtils {
     /* -------------------------------------------------------------------------- */
     /* Build URL for individual resource requests                                 */
     /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("deprecation")
     public static String buildResourceUrl(String baseUrl, String doctype, String resourceId, String[] fields) {
         try {
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
@@ -65,8 +64,9 @@ public class ApiUtils {
 
 
     /* -------------------------------------------------------------------------- */
-    /* Build URL for list/collection requests                                     */
+    /*                   Build url for list, collection request                   */
     /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("deprecation")
     public static String buildUrl(String baseUrl, String doctype, String[] fields, List<String[]> filters) {
         try {
             UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(baseUrl)
@@ -109,11 +109,6 @@ public class ApiUtils {
                 builder.queryParam("filters", filtersJson.toString());
             }
 
-            // You can add other parameters like limit, start, order_by similarly
-            // e.g., builder.queryParam("limit_start", 0);
-            // e.g., builder.queryParam("limit_page_length", 20);
-
-            // Corrected: Build the URI first, then encode it.
             return builder.build().encode().toUriString();
         } catch (Exception e) {
             throw new RuntimeException("Failed to build URL: " + e.getMessage(), e);
@@ -121,6 +116,9 @@ public class ApiUtils {
     }
 
 
+    /* -------------------------------------------------------------------------- */
+    /*                         Build day of birth filters                         */
+    /* -------------------------------------------------------------------------- */
     public static List<String[]> buildDobFilters(int minAge, int maxAge) {
         List<String[]> filters = new ArrayList<>();
         LocalDate today = LocalDate.now();
