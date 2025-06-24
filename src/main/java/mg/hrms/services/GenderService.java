@@ -3,10 +3,10 @@ package mg.hrms.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import mg.hrms.models.Gender;
 import mg.hrms.models.User;
+import mg.hrms.utils.OperationUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -16,32 +16,32 @@ import java.util.Map;
 public class GenderService {
 
     private static final Logger logger = LoggerFactory.getLogger(GenderService.class);
-    private final RestApiService restApiService;
+    private final FrappeService frappeService;
     private final ObjectMapper objectMapper;
 
-    public GenderService(RestApiService restApiService, ObjectMapper objectMapper) {
-        this.restApiService = restApiService;
+    public GenderService(ObjectMapper objectMapper, FrappeService frappeService) {
         this.objectMapper = objectMapper;
+        this.frappeService = frappeService;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                              Fetch all genders                             */
+    /* -------------------------------------------------------------------------- */
     public List<Gender> getAll(User user) throws Exception {
-        logger.info("Fetching all genders for user: {}", user.getFullName());
-        String[] fields = {"name"};
-        String apiUrl = restApiService.buildUrl("Gender", fields, null);
+        OperationUtils.logStep("Fetching all companies", logger);
+        String[] fields = new String[]{"name"};
+        List<Map<String, Object>> response = frappeService.searchFrappeDocuments("Gender",fields, null, user);
 
-        var response = restApiService.executeApiCall(
-                apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
-
-        if (response.getBody() == null || response.getBody().get("data") == null) {
+        if (response == null) {
             logger.error("Genders data not found for user: {}", user.getFullName());
             throw new Exception("Genders data not found");
         }
 
         List<Gender> genders = objectMapper.convertValue(
-                response.getBody().get("data"),
+                response,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, Gender.class)
         );
-        logger.info("Retrieved {} genders for user: {}", genders.size(), user.getFullName());
+        OperationUtils.logStep("Retrieve "+genders.size()+" genders", logger);
         return genders;
     }
 }
