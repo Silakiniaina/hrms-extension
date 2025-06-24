@@ -5,8 +5,6 @@ import mg.hrms.models.SalaryStructureAssignment;
 import mg.hrms.models.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -17,33 +15,34 @@ import java.util.Map;
 public class SalaryStructureAssignmentService {
 
     private static final Logger logger = LoggerFactory.getLogger(SalaryStructureAssignmentService.class);
-    private final RestApiService restApiService;
+    private final FrappeService frappeService; 
     private final ObjectMapper objectMapper;
     private final SalaryStructureService salaryStructureService;
 
-    public SalaryStructureAssignmentService(RestApiService restApiService, ObjectMapper objectMapper, SalaryStructureService salaryStructureService) {
-        this.restApiService = restApiService;
+    public SalaryStructureAssignmentService(FrappeService frappeService, ObjectMapper objectMapper, SalaryStructureService salaryStructureService) {
+        this.frappeService = frappeService;
         this.objectMapper = objectMapper;
         this.salaryStructureService = salaryStructureService;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*            Fetch all salary structure assignment for an employee           */
+    /* -------------------------------------------------------------------------- */
     public List<SalaryStructureAssignment> getAllForEmployee(User user, String employeeId) throws Exception {
         logger.info("Fetching salary structure assignments for employee: {}", employeeId);
         String[] fields = {"employee", "salary_structure", "from_date"};
         List<String[]> filters = new ArrayList<>();
         filters.add(new String[]{"employee", "=", employeeId});
 
-        String apiUrl = restApiService.buildUrl("Salary Structure Assignment", fields, filters);
-        var response = restApiService.executeApiCall(
-                apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
+        List<Map<String, Object>> response = frappeService.searchFrappeDocuments("Salary Structure Assignment", fields, filters, user);
 
-        if (response.getBody() == null || response.getBody().get("data") == null) {
+        if (response == null) {
             logger.warn("No salary structure assignments found for employee: {}", employeeId);
             return new ArrayList<>();
         }
 
         List<SalaryStructureAssignment> assignments = objectMapper.convertValue(
-                response.getBody().get("data"),
+                response,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, SalaryStructureAssignment.class)
         );
 
