@@ -17,9 +17,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.servlet.http.HttpSession;
 import mg.hrms.models.Employee;
+import mg.hrms.models.SalaryComponent;
 import mg.hrms.models.SalarySlip;
 import mg.hrms.models.User;
 import mg.hrms.services.EmployeeService;
+import mg.hrms.services.SalaryComponentService;
 import mg.hrms.services.SalaryService;
 
 @Controller
@@ -30,10 +32,12 @@ public class SalaryController {
     
     private final EmployeeService employeeService;
     private final SalaryService salaryService;
+    private final SalaryComponentService salaryComponentService;
 
-    public SalaryController(EmployeeService employeeService, SalaryService salaryService){
+    public SalaryController(SalaryComponentService salaryComponentService,EmployeeService employeeService, SalaryService salaryService){
         this.employeeService = employeeService;
         this.salaryService = salaryService;
+        this.salaryComponentService = salaryComponentService;
     }
 
     @GetMapping("/generate")
@@ -150,6 +154,89 @@ public class SalaryController {
         }
         
         return "redirect:/salary/generate";
+    }
+
+
+    @GetMapping("/update")
+    public String showSalaryUpdateForm(Model model, HttpSession session){
+
+        try {
+            User user = validateUser(session);
+            model.addAttribute("pageTitle", "Salary Update");
+            model.addAttribute("contentPage", "pages/salary/salary-update.jsp");
+            model.addAttribute("salaryComponents", salaryComponentService.getAll(user));
+
+            return "layout/main-layout";
+        } catch (Exception e) {
+            logger.error("Failed to show salary update form: {}", e.getMessage());
+            model.addAttribute("error", "Failed to show salary update form: " + e.getMessage());
+            return "layout/main-layout";
+        }
+        
+    }
+
+    @PostMapping("/update")
+    public String updateSalaries(
+            @RequestParam("salaryComponent") String salaryComponent,
+            @RequestParam("operator") String operator,
+            @RequestParam("amount") double amount,
+            @RequestParam("action") String action,
+            @RequestParam("percentage") double percentage,
+            HttpSession session,
+            RedirectAttributes redirectAttributes) {
+
+        try {
+            User user = validateUser(session);
+            
+            // Validate input parameters
+            if (salaryComponent == null || salaryComponent.trim().isEmpty()) {
+                redirectAttributes.addFlashAttribute("error", "Please select a salary component");
+                return "redirect:/salary/update";
+            }
+            
+            if (amount <= 0) {
+                redirectAttributes.addFlashAttribute("error", "Amount must be positive");
+                return "redirect:/salary/update";
+            }
+            
+            if (percentage <= 0 || percentage > 100) {
+                redirectAttributes.addFlashAttribute("error", "Percentage must be between 0 and 100");
+                return "redirect:/salary/update";
+            }
+            
+            // Process the update
+            List<SalarySlip> updatedSlips = salaryService.updateSalarySlipsByCondition(
+                    salaryComponent, 
+                    operator, 
+                    amount, 
+                    action, 
+                    percentage, 
+                    user);
+            
+            // Prepare success message
+            String successMessage;
+            if (updatedSlips.isEmpty()) {
+                successMessage = "No salary slips matched the criteria. No updates were made.";
+            } else {
+                successMessage = String.format("Successfully updated %d salary slip(s) with component %s %s %.2f. " +
+                        "Applied %s of %.2f%% to base salary.", 
+                        updatedSlips.size(), 
+                        salaryComponent, 
+                        operator, 
+                        amount,
+                        action,
+                        percentage);
+            }
+            
+            redirectAttributes.addFlashAttribute("success", successMessage);
+            logger.info("Salary update completed successfully. {} slips updated.", updatedSlips.size());
+            
+        } catch (Exception e) {
+            logger.error("Failed to update salaries: {}", e.getMessage());
+            redirectAttributes.addFlashAttribute("error", "Failed to update salaries: " + e.getMessage());
+        }
+        
+        return "redirect:/salary/update";
     }
 
     private User validateUser(HttpSession session) throws Exception {
