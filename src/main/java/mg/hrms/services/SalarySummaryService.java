@@ -6,8 +6,6 @@ import mg.hrms.models.SalarySummary;
 import mg.hrms.models.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -22,33 +20,34 @@ import java.util.stream.Collectors;
 public class SalarySummaryService {
 
     private static final Logger logger = LoggerFactory.getLogger(SalarySummaryService.class);
-    private final RestApiService restApiService;
+    private final FrappeService frappeService;
     private final ObjectMapper objectMapper;
     private final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private final DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MM");
     private final DateTimeFormatter yearFormatter = DateTimeFormatter.ofPattern("yyyy");
 
-    public SalarySummaryService(RestApiService restApiService, ObjectMapper objectMapper) {
-        this.restApiService = restApiService;
+    public SalarySummaryService(FrappeService frappeService, ObjectMapper objectMapper) {
+        this.frappeService = frappeService;
         this.objectMapper = objectMapper;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                   Get the salary summary for an employee                   */
+    /* -------------------------------------------------------------------------- */
     public List<SalarySummary> getMonthlySalarySummary(User user, String month, String year) throws Exception {
         logger.info("Fetching salary summary for month: {}, year: {}", month, year);
         String[] fields = {"name", "employee","employee_name", "posting_date", "gross_pay", "net_pay", "status"};
         List<String[]> filters = buildFilters(month, year);
 
-        String apiUrl = restApiService.buildUrl("Salary Slip", fields, filters);
-        var response = restApiService.executeApiCall(
-                apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
+        List<Map<String, Object>> response = frappeService.searchFrappeDocuments("Salary Slip", fields, filters, user);
 
-        if (response.getBody() == null || response.getBody().get("data") == null) {
+        if (response == null) {
             logger.warn("No salary slip data found for month: {}, year: {}", month, year);
             return new ArrayList<>();
         }
 
         List<SalarySlip> salarySlips = objectMapper.convertValue(
-                response.getBody().get("data"),
+                response,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, SalarySlip.class)
         );
 
@@ -64,6 +63,9 @@ public class SalarySummaryService {
         return summaries;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*              Build a filter according to the given parameters              */
+    /* -------------------------------------------------------------------------- */
     private List<String[]> buildFilters(String month, String year) throws Exception {
         List<String[]> filters = new ArrayList<>();
         filters.add(new String[]{"docstatus", "=", "1"});
@@ -88,6 +90,9 @@ public class SalarySummaryService {
         return filters;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*            Transoform a list for salary slip into Salary Summary           */
+    /* -------------------------------------------------------------------------- */
     private List<SalarySummary> transformSalaryData(List<SalarySlip> salarySlips) {
         List<SalarySummary> summaries = new ArrayList<>();
         for (SalarySlip slip : salarySlips) {
