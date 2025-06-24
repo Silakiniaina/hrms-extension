@@ -10,11 +10,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
-
+import org.springframework.stereotype.Service;
 
 import mg.hrms.models.User;
 import mg.hrms.utils.OperationUtils;
 
+@Service
 public class FrappeService {
 
     private static final Logger logger = LoggerFactory.getLogger(FrappeService.class);
@@ -28,9 +29,9 @@ public class FrappeService {
     /*                        Find a document with its name                       */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "null", "unchecked" })
-    public Map<String, Object> getFrappeDocument(String doctype, String name, User user) {
+    public Map<String, Object> getFrappeDocument(String doctype,String[] fields, String name, User user) {
         try {
-            String url = restApiService.buildResourceUrl(doctype, name, null);
+            String url = restApiService.buildResourceUrl(doctype, name, fields);
             ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
                     url,
                     HttpMethod.GET,
@@ -55,15 +56,10 @@ public class FrappeService {
     /*                       Search for object with filters                       */
     /* -------------------------------------------------------------------------- */
     @SuppressWarnings({ "unchecked", "null" })
-    public List<Map<String, Object>> searchFrappeDocuments(String doctype, Map<String, Object> filters, User user) {
+    public List<Map<String, Object>> searchFrappeDocuments(String doctype, String[] fields, List<String[]> filters, User user) {
         try {
-            // Convertir les filtres Map en List<String[]> pour buildUrl
-            List<String[]> filtersList = new ArrayList<>();
-            for (Map.Entry<String, Object> entry : filters.entrySet()) {
-                filtersList.add(new String[] { entry.getKey(), "=", entry.getValue().toString() });
-            }
 
-            String url = restApiService.buildUrl(doctype, null, filtersList);
+            String url = restApiService.buildUrl(doctype, fields, filters);
             ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
                     url,
                     HttpMethod.GET,
