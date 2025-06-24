@@ -27,6 +27,9 @@ public class ExportPdfService {
     private static final Logger logger = LoggerFactory.getLogger(ExportPdfService.class);
     private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.FRANCE);
 
+    /* -------------------------------------------------------------------------- */
+    /*                    Processing the PaySlipPdf generation                    */
+    /* -------------------------------------------------------------------------- */
     public void generatePayslipPdf(Employee employee, SalarySlip payslip, OutputStream outputStream) throws Exception {
         logger.info("Generating PDF for payslip: {} for employee: {}", payslip.getSlipId(), employee.getEmployeeId());
         Document document = new Document();
@@ -73,6 +76,9 @@ public class ExportPdfService {
         logger.info("PDF generated successfully for payslip: {}", payslip.getSlipId());
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                        Create the table for earnings                       */
+    /* -------------------------------------------------------------------------- */
     private PdfPTable createEarningsTable(SalarySlip payslip) {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
@@ -100,6 +106,9 @@ public class ExportPdfService {
         return table;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                       Create the table for deductions                      */
+    /* -------------------------------------------------------------------------- */
     private PdfPTable createDeductionsTable(SalarySlip payslip) {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(100);
@@ -129,6 +138,9 @@ public class ExportPdfService {
         return table;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                     Create table for the netPay section                    */
+    /* -------------------------------------------------------------------------- */
     private PdfPTable createNetPaySection(SalarySlip payslip) {
         PdfPTable table = new PdfPTable(2);
         table.setWidthPercentage(60);
