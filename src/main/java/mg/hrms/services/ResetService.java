@@ -1,6 +1,5 @@
 package mg.hrms.services;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import mg.hrms.models.User;
 import mg.hrms.payload.ResetResult;
 import org.slf4j.Logger;
@@ -18,13 +17,14 @@ public class ResetService {
 
     private static final Logger logger = LoggerFactory.getLogger(ResetService.class);
     private final RestApiService restApiService;
-    private final ObjectMapper objectMapper;
 
-    public ResetService(RestApiService restApiService, ObjectMapper objectMapper) {
+    public ResetService(RestApiService restApiService) {
         this.restApiService = restApiService;
-        this.objectMapper = objectMapper;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                       Processing the reset operation                       */
+    /* -------------------------------------------------------------------------- */
     public ResetResult processReset(String company, User user) throws Exception {
         logger.info("Processing reset for company: {}", company != null ? company : "All");
         String resetUrl = restApiService.getServerHost() + "/api/method/hrms.api.data_reset.reset_hrms_data";
@@ -45,6 +45,10 @@ public class ResetService {
         }
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                      Handle reset response from frappe                     */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("unchecked")
     private ResetResult processResetResponse(Map<String, Object> responseBody) {
         ResetResult result = new ResetResult();
         try {
@@ -74,6 +78,10 @@ public class ResetService {
         return result;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                  Extract the message on the object return                  */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("unchecked")
     private String extractMessage(Object messageObj) {
         if (messageObj == null) return null;
         if (messageObj instanceof String) return (String) messageObj;
@@ -87,6 +95,9 @@ public class ResetService {
         return messageObj.toString();
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                   Extract the boolean value of an object                   */
+    /* -------------------------------------------------------------------------- */
     private Boolean extractBoolean(Object booleanObj) {
         if (booleanObj == null) return null;
         if (booleanObj instanceof Boolean) return (Boolean) booleanObj;
@@ -95,6 +106,9 @@ public class ResetService {
         return null;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                       Extract the log message details                      */
+    /* -------------------------------------------------------------------------- */
     private String extractLogDetails(Object logObj) {
         if (logObj == null) return null;
         StringBuilder logMessage = new StringBuilder();
