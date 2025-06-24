@@ -17,9 +17,6 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -39,6 +36,7 @@ public class RestApiService {
         return serverHost;
     }
 
+    @SuppressWarnings("deprecation")
     public <T, R> ResponseEntity<R> executeApiCall(String url, HttpMethod method, T requestBody,
                                                    User user, ParameterizedTypeReference<R> responseType) throws Exception {
         try {
