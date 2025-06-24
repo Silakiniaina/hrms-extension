@@ -3,7 +3,6 @@ package mg.hrms.models;
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 import java.util.List;
-import java.util.Map;
 
 @Data
 @AllArgsConstructor
@@ -31,7 +30,7 @@ public class SalaryChartData {
             this.borderColor = borderColor;
             this.backgroundColor = backgroundColor;
             this.fill = false;
-            this.tension = 0.4; // For smooth curves
+            this.tension = 0.4;
         }
     }
 }
