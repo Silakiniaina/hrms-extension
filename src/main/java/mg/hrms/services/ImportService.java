@@ -30,12 +30,12 @@ public class ImportService {
     private static final Logger logger = LoggerFactory.getLogger(ImportService.class);
     private final FrappeService frappeService;
     private final ObjectMapper objectMapper;
-    private boolean forceUpdate = false;
     private Map<String, String> employeeRefMap = new HashMap<>();
     private Map<String, Integer> logCounts = new HashMap<>();
     private Map<String, List<String>> createdDocs = new HashMap<>();
     private Map<String, List<String>> errorMap = new HashMap<>();
-
+    private boolean forceUpdate = false;
+    
     public ImportService(ObjectMapper objectMapper, FrappeService frappeService) {
         this.objectMapper = objectMapper;
         this.frappeService = frappeService;
@@ -651,10 +651,12 @@ public class ImportService {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private String updateStructureComponent(String structureDocName, SalaryStructureImport struct, User user) {
         try {
             // Get the existing structure document
-            Map<String, Object> structureDoc = frappeService.getFrappeDocument("Salary Structure", structureDocName, user);
+            String[] fields = {"name", "company", "components"};
+            Map<String, Object> structureDoc = frappeService.getFrappeDocument("Salary Structure",fields, structureDocName, user);
             if (structureDoc == null) {
                 throw new RuntimeException("Structure document not found: " + structureDocName);
             }
@@ -718,7 +720,8 @@ public class ImportService {
     /* -------------------------------------------------------------------------- */
     private String getCurrencyForCompany(String company, User user) {
         try {
-            Map<String, Object> companyDoc = frappeService.getFrappeDocument("Company", company, user);
+            String[] fields = new String[]{"name","default_currency"};
+            Map<String, Object> companyDoc = frappeService.getFrappeDocument("Company",fields, company, user);
             return companyDoc != null ? (String) companyDoc.get("default_currency") : "USD";
         } catch (Exception e) {
             return "USD";
@@ -726,22 +729,25 @@ public class ImportService {
     }
 
     private String checkExistingSalaryComponent(String name, User user) {
-        Map<String, Object> response = frappeService.getFrappeDocument("Salary Component", name, user);
+        String[] fields = new String[]{"name"};
+        Map<String, Object> response = frappeService.getFrappeDocument("Salary Component",fields, name, user);
         return response != null ? name : null;
     }
 
     private String checkExistingSalaryStructure(String name, User user) {
-        Map<String, Object> response = frappeService.getFrappeDocument("Salary Structure", name, user);
+        String[] fields = new String[]{"name"};
+        Map<String, Object> response = frappeService.getFrappeDocument("Salary Structure",fields, name, user);
         return response != null ? name : null;
     }
 
     private String checkExistingEmployee(String ref, User user) {
         try {
-            // Search for employee by ref field
-            Map<String, Object> filters = new HashMap<>();
-            filters.put("ref", ref);
+            String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
+            List<String[]> filters = new ArrayList<>();
+            filters.add(new String[]{"ref","=",ref});
 
-            List<Map<String, Object>> employees = frappeService.searchFrappeDocuments("Employee", filters, user);
+
+            List<Map<String, Object>> employees = frappeService.searchFrappeDocuments("Employee",fields, filters, user);
             if (employees != null && !employees.isEmpty()) {
                 return (String) employees.get(0).get("name");
             }
@@ -753,7 +759,8 @@ public class ImportService {
 
     private String getCompanyForEmployee(String employeeName, User user) {
         try {
-            Map<String, Object> emp = frappeService.getFrappeDocument("Employee", employeeName, user);
+            String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
+            Map<String, Object> emp = frappeService.getFrappeDocument("Employee",fields, employeeName, user);
             return emp != null ? (String) emp.get("company") : "Default Company";
         } catch (Exception e) {
             return "Default Company";
@@ -763,14 +770,14 @@ public class ImportService {
     private boolean ensureSalaryStructureAssignment(String employee, String salaryStructure,
             String fromDate, Double baseSalary, String company, User user) {
         try {
-            // Check if assignment already exists
-            Map<String, Object> filters = new HashMap<>();
-            filters.put("employee", employee);
-            filters.put("salary_structure", salaryStructure);
-            filters.put("from_date", OperationUtils.formatIntoFrappeDate(fromDate));
-            // filters.put("to_date", OperationUtils.formatIntoFrappeDate(toDate.toString()));
+            String[] fields = {"employee", "salary_structure", "from_date"};
 
-            List<Map<String, Object>> assignments = frappeService.searchFrappeDocuments("Salary Structure Assignment", filters, user);
+            List<String[]> filters = new ArrayList<>();
+            filters.add(new String[]{"employee","=",employee});
+            filters.add(new String[]{"salary_structure","=",salaryStructure});
+            filters.add(new String[]{"from_date","=",OperationUtils.formatIntoFrappeDate(fromDate)});
+
+            List<Map<String, Object>> assignments = frappeService.searchFrappeDocuments("Salary Structure Assignment",fields, filters, user);
             if (assignments != null && !assignments.isEmpty()) {
                 logStep("Salary structure assignment already exists");
                 return true;
@@ -808,7 +815,8 @@ public class ImportService {
             String fiscalYearName = String.valueOf(year);
 
             // Check if fiscal year exists
-            Map<String, Object> existing = frappeService.getFrappeDocument("Fiscal Year", fiscalYearName, user);
+            String[] fields = new String[]{"name"};
+            Map<String, Object> existing = frappeService.getFrappeDocument("Fiscal Year",fields, fiscalYearName, user);
             if (existing != null) {
                 return fiscalYearName;
             }
@@ -835,7 +843,8 @@ public class ImportService {
     /* -------------------------------------------------------------------------- */
     private String getOrCreateCompany(String companyName, User user) {
         try {
-            Map<String, Object> existing = frappeService.getFrappeDocument("Company", companyName, user);
+            String[] fields = new String[]{"name"};
+            Map<String, Object> existing = frappeService.getFrappeDocument("Company",fields, companyName, user);
             if (existing != null) {
                 return companyName;
             }
@@ -859,7 +868,8 @@ public class ImportService {
 
     private String getOrCreateDepartment(String deptName, String company, User user) {
         try {
-            Map<String, Object> existing = frappeService.getFrappeDocument("Department", deptName, user);
+            String[] fields = new String[]{"name"};
+            Map<String, Object> existing = frappeService.getFrappeDocument("Department",fields, deptName, user);
             if (existing != null) {
                 return deptName;
             }
@@ -881,7 +891,8 @@ public class ImportService {
 
     private String getOrCreateDesignation(String designation, User user) {
         try {
-            Map<String, Object> existing = frappeService.getFrappeDocument("Designation", designation, user);
+            String[] fields = new String[]{"name"};
+            Map<String, Object> existing = frappeService.getFrappeDocument("Designation",fields, designation, user);
             if (existing != null) {
                 return designation;
             }
@@ -902,7 +913,8 @@ public class ImportService {
 
     private String getOrCreateBranch(String branchName, String company, User user) {
         try {
-            Map<String, Object> existing = frappeService.getFrappeDocument("Branch", branchName, user);
+            String[] fields = new String[]{"name"};
+            Map<String, Object> existing = frappeService.getFrappeDocument("Branch", fields, branchName, user);
             if (existing != null) {
                 return branchName;
             }
@@ -950,6 +962,7 @@ public class ImportService {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private <T> List<T> parseCsvFile(MultipartFile file, TypeReference<List<T>> typeRef) throws IOException {
         try (InputStreamReader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8)) {
             Class<?> targetClass = getClassFromTypeReference(typeRef);
