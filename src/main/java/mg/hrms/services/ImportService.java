@@ -767,7 +767,7 @@ public class ImportService {
         }
     }
 
-    private boolean ensureSalaryStructureAssignment(String employee, String salaryStructure,
+    public boolean ensureSalaryStructureAssignment(String employee, String salaryStructure,
             String fromDate, Double baseSalary, String company, User user) {
         try {
             String[] fields = {"employee", "salary_structure", "from_date"};

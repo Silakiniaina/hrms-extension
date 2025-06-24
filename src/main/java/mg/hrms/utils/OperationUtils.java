@@ -1,6 +1,7 @@
 package mg.hrms.utils;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Locale;
@@ -47,5 +48,14 @@ public class OperationUtils {
             System.err.println("Invalid date format: " + date);
             return null;
         }
+    }
+
+    /* -------------------------------------------------------------------------- */
+    /*              Extract YearMonth of a date of format dd/MM/yyyy              */
+    /* -------------------------------------------------------------------------- */
+    public static YearMonth extractYearMonth(String date){
+        int month = Integer.parseInt(date.split("/")[1]);
+        int year = Integer.parseInt(date.split("/")[2]);
+        return YearMonth.of(year, month);
     }
 }

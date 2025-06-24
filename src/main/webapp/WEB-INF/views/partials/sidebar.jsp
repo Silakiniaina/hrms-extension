@@ -82,6 +82,30 @@
 
                 <li class="nav-item">
                     <a href="#" class="nav-link">
+                        <i class="nav-icon fas fa-calculator"></i>
+                        <p>
+                            Salary
+                            <i class="fas fa-angle-left right"></i>
+                        </p>
+                    </a>
+                    <ul class="nav nav-treeview">
+                        <li class="nav-item">
+                            <a href="<%= request.getContextPath() %>/salary/generate" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
+                                <i class="far fa-circle nav-icon"></i>
+                                <p>Generate</p>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="<%= request.getContextPath() %>/salary/update" class="nav-link <%= request.getRequestURI().contains("/users") ? "active" : "" %>">
+                                <i class="far fa-trash nav-icon"></i>
+                                <p>Update</p>
+                            </a>
+                        </li>
+                    </ul>
+                </li>
+
+                <li class="nav-item">
+                    <a href="#" class="nav-link">
                         <i class="nav-icon fas fa-database"></i>
                         <p>
                             Data
