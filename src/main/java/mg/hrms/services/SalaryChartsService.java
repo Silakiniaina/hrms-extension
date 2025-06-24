@@ -1,6 +1,5 @@
 package mg.hrms.services;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import mg.hrms.models.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,15 +16,17 @@ public class SalaryChartsService {
     private static final Logger logger = LoggerFactory.getLogger(SalaryChartsService.class);
     private static final int PAGE_SIZE = 200;
     private final RestApiService restApiService;
-    private final ObjectMapper objectMapper;
     private final SalarySlipService salarySlipService;
 
-    public SalaryChartsService(RestApiService restApiService, ObjectMapper objectMapper, SalarySlipService salarySlipService) {
+    public SalaryChartsService(RestApiService restApiService, SalarySlipService salarySlipService) {
         this.restApiService = restApiService;
-        this.objectMapper = objectMapper;
         this.salarySlipService = salarySlipService;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                       Fetch salary stats for a period                      */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("null")
     public List<SalaryStats> getSalaryStatsForPeriod(User user, String startYear, String endYear) throws Exception {
         logger.info("Fetching salary stats for period: {} to {}", startYear, endYear);
 
@@ -127,6 +128,9 @@ public class SalaryChartsService {
         return result;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                     Get salary chart data for a period                     */
+    /* -------------------------------------------------------------------------- */
     public SalaryChartData getSalaryChartData(User user, String startYear, String endYear) throws Exception {
         logger.info("Generating salary chart data for period: {} to {}", startYear, endYear);
 
@@ -201,6 +205,9 @@ public class SalaryChartsService {
         return chartData;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                Get salary component chart data for a period.               */
+    /* -------------------------------------------------------------------------- */
     public SalaryChartData getSalaryComponentsChartData(User user, String startYear, String endYear) throws Exception {
         logger.info("Generating salary components chart data for period: {} to {}", startYear, endYear);
 
@@ -319,6 +326,10 @@ public class SalaryChartsService {
         return chartData;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                     Get all available year for filters                     */
+    /* -------------------------------------------------------------------------- */
+    @SuppressWarnings("null")
     public List<String> getAvailableYears(User user) throws Exception {
         logger.info("Fetching available years for salary charts");
 
@@ -365,6 +376,9 @@ public class SalaryChartsService {
         return sortedYears;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                            Processing components                           */
+    /* -------------------------------------------------------------------------- */
     private void processComponents(SalarySlip slip, SalaryStats stats) {
         // Process earnings
         if (slip.getEarnings() != null) {
@@ -431,6 +445,9 @@ public class SalaryChartsService {
         }
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                        Get double value of an object                       */
+    /* -------------------------------------------------------------------------- */
     private Double getDoubleValue(Object value) {
         if (value == null) return 0.0;
         if (value instanceof Number) return ((Number) value).doubleValue();
