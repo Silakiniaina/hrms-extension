@@ -118,6 +118,7 @@ public class FrappeService {
     /* -------------------------------------------------------------------------- */
     public boolean submitFrappeDocument(String doctype, String name, User user) {
         try {
+            logger.info("Attempt to submit a "+doctype+ "with id : "+name);
             String url = restApiService.buildResourceUrl(doctype, name, null);
             Map<String, Object> data = new HashMap<>();
             data.put("docstatus", 1);
@@ -129,6 +130,7 @@ public class FrappeService {
                     user,
                     new ParameterizedTypeReference<Map<String, Object>>() {
                     });
+            logger.info("Successfully submit "+doctype+ "with id : "+name); 
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
             OperationUtils.logStep("Failed to submit document " + doctype + "/" + name + ": " + e.getMessage(), logger);
@@ -141,6 +143,7 @@ public class FrappeService {
     /* -------------------------------------------------------------------------- */
     public boolean cancelFrappeDocument(String doctype, String name, User user) {
         try {
+            logger.info("Attempt to cancel a "+doctype+ "with id : "+name);
             String url = restApiService.buildResourceUrl(doctype, name, null);
             Map<String, Object> data = new HashMap<>();
             data.put("docstatus", 2);
@@ -152,6 +155,7 @@ public class FrappeService {
                     user,
                     new ParameterizedTypeReference<Map<String, Object>>() {
                     });
+            logger.info("Successfully canceled "+doctype+ "with id : "+name); 
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
             OperationUtils.logStep("Failed to cancel document " + doctype + "/" + name + ": " + e.getMessage(), logger);
@@ -164,6 +168,7 @@ public class FrappeService {
     /* -------------------------------------------------------------------------- */
     public boolean deleteFrappeDocument(String doctype, String name, User user) {
         try {
+            logger.info("Attempt to delete a "+doctype+ "with id : "+name);
             String url = restApiService.buildResourceUrl(doctype, name, null);
             Map<String, Object> data = new HashMap<>();
             data.put("name", name);
@@ -175,6 +180,7 @@ public class FrappeService {
                     user,
                     new ParameterizedTypeReference<Map<String, Object>>() {
                     });
+            logger.info("Successfully deleted "+doctype+ "with id : "+name); 
             return response.getStatusCode().is2xxSuccessful();
         } catch (Exception e) {
             OperationUtils.logStep("Failed to delete document " + doctype + "/" + name + ": " + e.getMessage(), logger);
@@ -188,6 +194,7 @@ public class FrappeService {
     @SuppressWarnings({ "unchecked", "null" })
     public String updateFrappeDocument(String doctype, String name, Map<String, Object> data, User user) {
         try {
+            logger.info("Attempt to cancel a "+doctype+ "with id : "+name);
             String url = restApiService.buildResourceUrl(doctype, name, null);
             ResponseEntity<Map<String, Object>> response = restApiService.executeApiCall(
                     url,

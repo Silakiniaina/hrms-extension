@@ -28,7 +28,7 @@ public class SalarySlipService {
     /* -------------------------------------------------------------------------- */
     public SalarySlip getById(User user, String slipId) throws Exception {
         logger.info("Fetching salary slip by ID: {}", slipId);
-        String[] fields = {"name", "employee","employee_name", "posting_date", "salary_structure", "gross_pay", "net_pay", "status","bank_name","bank_account_no"};
+        String[] fields = {"name", "employee","employee_name", "posting_date", "salary_structure", "gross_pay", "net_pay", "status","bank_name","bank_account_no","earnings","deductions"};
 
         Map<String, Object> response = frappeService.getFrappeDocument("Salary Slip", fields, slipId, user);
 

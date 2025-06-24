@@ -37,4 +37,16 @@ public class SalarySlip {
 
     private SalaryStructure salaryStructureObj;
     private Employee employeeObj;
+
+    public double getBaseSalary(){
+        double result = 0;
+        for(SalaryComponent component : earnings){
+            System.out.println("Component name : "+component.getName());
+            if(component.getName().equalsIgnoreCase("salaire base")){
+                result = component.getAmount();
+                break;
+            }
+        }
+        return result;
+    }
 }
