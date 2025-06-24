@@ -8,6 +8,8 @@ import lombok.*;
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class SalaryComponent {
+    @JsonProperty("name")
+    private String id;
     @JsonProperty("salary_component")
     private String name;
     @JsonProperty("type")
