@@ -7,8 +7,6 @@ import mg.hrms.models.User;
 import mg.hrms.models.args.EmployeeFilterArgs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,12 +16,14 @@ import java.util.Map;
 public class EmployeeService {
 
     private static final Logger logger = LoggerFactory.getLogger(EmployeeService.class);
+    private final FrappeService frappeService;
     private final RestApiService restApiService;
     private final ObjectMapper objectMapper;
     private final SalarySlipService salarySlipService;
     private final SalaryStructureAssignmentService salaryStructureAssignmentService;
 
-    public EmployeeService(RestApiService restApiService, ObjectMapper objectMapper, SalarySlipService salarySlipService, SalaryStructureAssignmentService salaryStructureAssignmentService) {
+    public EmployeeService(RestApiService restApiService, FrappeService frappeService, ObjectMapper objectMapper, SalarySlipService salarySlipService, SalaryStructureAssignmentService salaryStructureAssignmentService) {
+        this.frappeService = frappeService;
         this.restApiService = restApiService;
         this.objectMapper = objectMapper;
         this.salarySlipService = salarySlipService;
@@ -33,21 +33,18 @@ public class EmployeeService {
     /* -------------------------------------------------------------------------- */
     /*                       Method to getEmployeeBy his Id                       */
     /* -------------------------------------------------------------------------- */
-    @SuppressWarnings("null")
     public Employee getById(User user, String employeeId) throws Exception {
         logger.info("Fetching employee by ID: {}", employeeId);
         String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
-        String apiUrl = restApiService.buildResourceUrl("Employee", employeeId, fields);
+        
+        Map<String, Object> response = frappeService.getFrappeDocument("Employee", fields, employeeId, user);
 
-        var response = restApiService.executeApiCall(
-                apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
-
-        if (response.getBody() == null || response.getBody().get("data") == null) {
+        if (response == null) {
             logger.error("Employee not found: {}", employeeId);
             throw new Exception("Employee not found");
         }
 
-        Employee employee = objectMapper.convertValue(response.getBody().get("data"), Employee.class);
+        Employee employee = objectMapper.convertValue(response, Employee.class);
         logger.info("Retrieved employee: {} {}", employee.getFirstName(), employee.getLastName());
 
         if(employee != null){
@@ -56,22 +53,23 @@ public class EmployeeService {
         return employee;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*              Fetch all employees according to filter paramters             */
+    /* -------------------------------------------------------------------------- */
     public List<Employee> getAll(User user, EmployeeFilterArgs filter) throws Exception {
         logger.info("Fetching all employees for user: {}", user.getFullName());
         String[] fields = {"name", "last_name", "first_name", "gender", "date_of_birth", "date_of_joining", "company", "status"};
         List<String[]> filters = buildFilters(filter);
 
-        String apiUrl = restApiService.buildUrl("Employee", fields, filters);
-        var response = restApiService.executeApiCall(
-                apiUrl, HttpMethod.GET, null, user, new ParameterizedTypeReference<Map<String, Object>>() {});
+        List<Map<String, Object>> response = frappeService.searchFrappeDocuments("Employee", fields, filters, user);
 
-        if (response.getBody() == null || response.getBody().get("data") == null) {
+        if (response == null) {
             logger.error("Employees data not found for user: {}", user.getFullName());
             throw new Exception("Employees data not found");
         }
 
         List<Employee> employees = objectMapper.convertValue(
-                response.getBody().get("data"),
+                response,
                 objectMapper.getTypeFactory().constructCollectionType(List.class, Employee.class)
         );
 
@@ -83,16 +81,25 @@ public class EmployeeService {
         return employees;
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                            Get employee salaries                           */
+    /* -------------------------------------------------------------------------- */
     public List<SalarySlip> getEmployeeSalaries(User user, String employeeId) throws Exception {
         logger.info("Fetching salaries for employee: {}", employeeId);
         return salarySlipService.getAllForEmployee(user, employeeId);
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                        Fetch a salary slip by its Id                       */
+    /* -------------------------------------------------------------------------- */
     public SalarySlip getPayslipById(User user, String payslipId) throws Exception {
         logger.info("Fetching payslip by ID: {}", payslipId);
         return salarySlipService.getById(user, payslipId);
     }
 
+    /* -------------------------------------------------------------------------- */
+    /*                 Build filter according to given parameters                 */
+    /* -------------------------------------------------------------------------- */
     private List<String[]> buildFilters(EmployeeFilterArgs filter) {
         List<String[]> filters = new java.util.ArrayList<>();
         if (filter == null) return filters;
